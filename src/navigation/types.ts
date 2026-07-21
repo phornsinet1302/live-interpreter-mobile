@@ -1,13 +1,11 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
-  Auth: undefined;
+  Welcome: undefined;
+  StartJourney: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
-  Interpreter: { meetingId?: string };
-};
-
-export type AuthStackParamList = {
   Login: undefined;
+  Register: undefined;
 };
 
 export type MainTabParamList = {

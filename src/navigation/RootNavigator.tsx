@@ -3,38 +3,79 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '@/hooks/useAuth';
-import { colors } from '@/utils/theme';
+import { useOnboarding } from '@/hooks/useOnboarding';
+import { colors, fonts } from '@/utils/theme';
 import { RootStackParamList, MainTabParamList } from './types';
 
+import { WelcomeScreen } from '@/screens/WelcomeScreen';
+import { StartJourneyScreen } from '@/screens/StartJourneyScreen';
 import { LoginScreen } from '@/screens/LoginScreen';
+import { RegisterScreen } from '@/screens/RegisterScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
-import { InterpreterScreen } from '@/screens/InterpreterScreen';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
 const screenOptions = {
-  headerStyle: { backgroundColor: colors.surface },
+  headerStyle: { backgroundColor: colors.background },
+  headerShadowVisible: false,
+  headerTitleStyle: { fontFamily: fonts.sansSemiBold },
   headerTintColor: colors.text,
   contentStyle: { backgroundColor: colors.background },
 } as const;
 
+const authScreenOptions = {
+  ...screenOptions,
+  headerShown: false,
+} as const;
+
+const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
+  Home: 'home',
+  History: 'time',
+  Settings: 'settings',
+};
+
 function MainTabs() {
   return (
     <Tabs.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
+      screenOptions={({ route }) => ({
+        headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
+        headerTitleStyle: { fontFamily: fonts.sansSemiBold },
         headerTintColor: colors.text,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-      }}
+        tabBarStyle: {
+          backgroundColor: colors.backgroundElevated,
+          borderTopColor: colors.border,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: { fontFamily: fonts.sansSemiBold, fontSize: 11 },
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textFaint,
+        tabBarIcon: ({ color, size, focused }) => (
+          <Ionicons
+            name={
+              focused
+                ? TAB_ICONS[route.name as keyof MainTabParamList]
+                : (`${TAB_ICONS[route.name as keyof MainTabParamList]}-outline` as keyof typeof Ionicons.glyphMap)
+            }
+            size={size - 2}
+            color={color}
+          />
+        ),
+      })}
     >
-      <Tabs.Screen name="Home" component={HomeScreen} />
+      <Tabs.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
       <Tabs.Screen name="History" component={HistoryScreen} />
       <Tabs.Screen name="Settings" component={SettingsScreen} />
     </Tabs.Navigator>
@@ -42,39 +83,52 @@ function MainTabs() {
 }
 
 export function RootNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isLoading: authLoading } = useAuth();
+  const { hasOnboarded, isLoading: onboardingLoading } = useOnboarding();
 
-  if (isLoading) {
+  if (authLoading || onboardingLoading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      <RootStack.Navigator screenOptions={screenOptions}>
-        {isAuthenticated ? (
+      <RootStack.Navigator
+        screenOptions={screenOptions}
+        initialRouteName={hasOnboarded ? 'Main' : 'Welcome'}
+      >
+        {!hasOnboarded && (
           <>
             <RootStack.Screen
-              name="Main"
-              component={MainTabs}
+              name="Welcome"
+              component={WelcomeScreen}
               options={{ headerShown: false }}
             />
             <RootStack.Screen
-              name="Interpreter"
-              component={InterpreterScreen}
-              options={{ title: 'Live Interpreter' }}
+              name="StartJourney"
+              component={StartJourneyScreen}
+              options={{ headerShown: false }}
             />
           </>
-        ) : (
-          <RootStack.Screen
-            name="Auth"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
         )}
+        <RootStack.Screen
+          name="Main"
+          component={MainTabs}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={authScreenOptions}
+        />
+        <RootStack.Screen
+          name="Register"
+          component={RegisterScreen}
+          options={authScreenOptions}
+        />
       </RootStack.Navigator>
     </NavigationContainer>
   );

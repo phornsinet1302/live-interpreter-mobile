@@ -20,22 +20,25 @@ import { colors, fonts, spacing, typography } from '@/utils/theme';
 import { ApiError } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
-type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
+type Nav = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
-export function LoginScreen() {
+export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
-  const { signIn } = useAuth();
+  const { signUp } = useAuth();
   const { completeOnboarding } = useOnboarding();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canSubmit = name.trim() && email.trim() && password.length >= 6;
+
   const onSubmit = async () => {
     setLoading(true);
     setError(null);
     try {
-      await signIn({ email: email.trim(), password });
+      await signUp({ name: name.trim(), email: email.trim(), password });
       completeOnboarding();
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (e) {
@@ -58,11 +61,11 @@ export function LoginScreen() {
         </Pressable>
         <Pressable
           style={styles.topBarLink}
-          onPress={() => navigation.replace('Register')}
+          onPress={() => navigation.replace('Login')}
           hitSlop={12}
         >
-          <Text style={styles.topBarMuted}>No account? </Text>
-          <Text style={styles.topBarAccent}>Sign up</Text>
+          <Text style={styles.topBarMuted}>Have an account? </Text>
+          <Text style={styles.topBarAccent}>Sign in</Text>
         </Pressable>
       </View>
 
@@ -74,13 +77,23 @@ export function LoginScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.eyebrow}>Welcome back</Text>
+          <Text style={styles.eyebrow}>Free · Forever</Text>
           <Text style={styles.title}>
-            Sign in to <Text style={styles.titleAccent}>Live Interpreter</Text>
+            Create your <Text style={styles.titleAccent}>account</Text>
           </Text>
-          <Text style={styles.subtitle}>Continue where you left off.</Text>
+          <Text style={styles.subtitle}>
+            Join thousands of translators, travelers, and wordsmiths.
+          </Text>
 
           <View style={styles.form}>
+            <Input
+              label="Full name"
+              placeholder="Alex Chen"
+              autoCapitalize="words"
+              autoComplete="name"
+              value={name}
+              onChangeText={setName}
+            />
             <Input
               label="Email address"
               placeholder="you@example.com"
@@ -92,7 +105,7 @@ export function LoginScreen() {
             />
             <Input
               label="Password"
-              placeholder="Your password"
+              placeholder="At least 6 characters"
               isPassword
               value={password}
               onChangeText={setPassword}
@@ -106,10 +119,10 @@ export function LoginScreen() {
             )}
 
             <Button
-              title="Sign In"
+              title="Create account"
               onPress={onSubmit}
               loading={loading}
-              disabled={!email.trim() || !password}
+              disabled={!canSubmit}
               style={styles.submit}
             />
           </View>

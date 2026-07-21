@@ -13,6 +13,7 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   signIn: (credentials: LoginCredentials) => Promise<void>;
+  signUp: (payload: LoginCredentials & { name: string }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -38,6 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(next);
   }, []);
 
+  const signUp = useCallback(
+    async (payload: LoginCredentials & { name: string }) => {
+      const next = await authService.register(payload);
+      setSession(next);
+    },
+    []
+  );
+
   const signOut = useCallback(async () => {
     await authService.logout();
     setSession(null);
@@ -49,9 +58,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       isAuthenticated: !!session,
       signIn,
+      signUp,
       signOut,
     }),
-    [session, isLoading, signIn, signOut]
+    [session, isLoading, signIn, signUp, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

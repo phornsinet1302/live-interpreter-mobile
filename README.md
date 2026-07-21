@@ -25,7 +25,7 @@ Configure the backend URL in `.env` and `app.json` (`expo.extra.apiBaseUrl`).
 
 ```
 src/
-  screens/      App screens (Login, Home, Interpreter, History, Settings)
+  screens/      App screens (Welcome, StartJourney, Login, Register, Home, History, Settings)
   components/   Reusable UI (Button, TranscriptBubble)
   navigation/   Navigators + route param types
   services/     API client and feature services (auth, translation, meeting, history)

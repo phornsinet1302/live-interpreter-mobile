@@ -1,17 +1,21 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { TranscriptEntry } from '@/types';
-import { colors, radius, spacing } from '@/utils/theme';
-import { formatTime } from '@/utils/format';
+import { colors, fonts, spacing } from '@/utils/theme';
 
-export function TranscriptBubble({ entry }: { entry: TranscriptEntry }) {
+interface TranscriptBubbleProps {
+  entry: TranscriptEntry;
+}
+
+export function TranscriptBubble({ entry }: TranscriptBubbleProps) {
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.speaker}>{entry.speakerName}</Text>
-        <Text style={styles.time}>{formatTime(entry.timestamp)}</Text>
-      </View>
       <Text style={styles.original}>{entry.original}</Text>
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <View style={styles.dividerDot} />
+        <View style={styles.dividerLine} />
+      </View>
       <Text style={styles.translated}>{entry.translated}</Text>
     </View>
   );
@@ -19,20 +23,36 @@ export function TranscriptBubble({ entry }: { entry: TranscriptEntry }) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
-  header: {
+  original: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 19,
+    color: colors.text,
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  divider: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginVertical: spacing.md,
   },
-  speaker: { color: colors.primary, fontWeight: '600' },
-  time: { color: colors.textMuted, fontSize: 12 },
-  original: { color: colors.textMuted, fontStyle: 'italic', marginBottom: 2 },
-  translated: { color: colors.text, fontSize: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.sm,
+  },
+  translated: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 20,
+    color: colors.accent,
+    textAlign: 'center',
+    lineHeight: 27,
+  },
 });

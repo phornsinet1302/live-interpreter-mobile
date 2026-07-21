@@ -1,85 +1,166 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Audio } from 'expo-av';
+import { Ionicons } from '@expo/vector-icons';
 
-import { Button } from '@/components/Button';
+import { TranscriptBubble } from '@/components/TranscriptBubble';
+import { EmptyState } from '@/components/EmptyState';
+import { transcribeAndTranslate } from '@/services/translation';
 import { useAuth } from '@/hooks/useAuth';
-import { createMeeting, joinMeeting } from '@/services/meeting';
-import { colors, radius, spacing } from '@/utils/theme';
-import { RootStackParamList } from '@/navigation/types';
-import { ApiError } from '@/types';
-
-type Nav = NativeStackNavigationProp<RootStackParamList>;
+import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { TranscriptEntry } from '@/types';
 
 export function HomeScreen() {
-  const navigation = useNavigation<Nav>();
   const { user } = useAuth();
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [entries, setEntries] = useState<TranscriptEntry[]>([]);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [sourceLanguage, setSourceLanguage] = useState('auto');
+  const [targetLanguage, setTargetLanguage] = useState(
+    user?.preferredLanguage ?? 'en'
+  );
+  const counter = useRef(0);
 
-  const start = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const meeting = await createMeeting('Quick session');
-      navigation.navigate('Interpreter', { meetingId: meeting.id });
-    } catch (e) {
-      setError((e as ApiError).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const startRecording = useCallback(async () => {
+    const permission = await Audio.requestPermissionsAsync();
+    if (!permission.granted) return;
 
-  const join = async () => {
-    if (!code.trim()) return;
-    setBusy(true);
-    setError(null);
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+    });
+    const { recording: rec } = await Audio.Recording.createAsync(
+      Audio.RecordingOptionsPresets.HIGH_QUALITY
+    );
+    setRecording(rec);
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    if (!recording) return;
+    setProcessing(true);
     try {
-      const meeting = await joinMeeting(
-        code.trim(),
-        user?.preferredLanguage ?? 'en'
-      );
-      navigation.navigate('Interpreter', { meetingId: meeting.id });
-    } catch (e) {
-      setError((e as ApiError).message);
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setRecording(null);
+      if (!uri) return;
+
+      const result = await transcribeAndTranslate(uri, sourceLanguage, targetLanguage);
+      const detected = result.detectedLanguage ?? result.source;
+      if (sourceLanguage === 'auto' && detected) {
+        setSourceLanguage(detected);
+      }
+      setEntries((prev) => [
+        {
+          id: `local-${counter.current++}`,
+          speakerId: user?.id ?? 'me',
+          speakerName: user?.name ?? 'You',
+          original: result.sourceText,
+          translated: result.translatedText,
+          source: detected,
+          target: result.target,
+          timestamp: Date.now(),
+        },
+        ...prev,
+      ]);
     } finally {
-      setBusy(false);
+      setProcessing(false);
     }
-  };
+  }, [recording, user, sourceLanguage, targetLanguage]);
+
+  const swapLanguages = useCallback(() => {
+    if (sourceLanguage === 'auto') return;
+    setSourceLanguage(targetLanguage);
+    setTargetLanguage(sourceLanguage);
+  }, [sourceLanguage, targetLanguage]);
+
+  const isRecording = !!recording;
+  const canSwap = sourceLanguage !== 'auto';
+  const statusText = isRecording
+    ? 'Recording — tap to stop'
+    : processing
+    ? 'Translating…'
+    : entries.length
+    ? 'Tap to speak again'
+    : 'Tap to speak';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <View style={styles.container}>
-        <Text style={styles.greeting}>
-          Hello{user?.name ? `, ${user.name}` : ''} 👋
-        </Text>
-        <Text style={styles.subtitle}>Start or join a live session</Text>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.logoBar}>
+        <Ionicons name="globe-outline" size={16} color={colors.accent} />
+        <Text style={styles.logoText}>Live Interpreter</Text>
+      </View>
 
-        <Button title="Start new session" onPress={start} loading={busy} />
-
-        <View style={styles.divider}>
-          <Text style={styles.dividerText}>or join with a code</Text>
+      <View style={styles.langSection}>
+        <Ionicons name="leaf-outline" size={20} color={colors.accent} style={styles.leafLeft} />
+        <Ionicons name="leaf-outline" size={16} color={colors.accent} style={styles.leafRight} />
+        <View style={styles.langBar}>
+          <View style={styles.langPill}>
+            <Text style={styles.langLabel}>Speaking</Text>
+            <Text style={styles.langValue}>
+              {sourceLanguage === 'auto' ? 'Auto-detect' : sourceLanguage.toUpperCase()}
+            </Text>
+          </View>
+          <Pressable
+            onPress={swapLanguages}
+            disabled={!canSwap}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.swap,
+              { opacity: !canSwap ? 0.4 : pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Ionicons name="swap-horizontal" size={16} color={colors.white} />
+          </Pressable>
+          <View style={styles.langPill}>
+            <Text style={styles.langLabel}>Translating to</Text>
+            <Text style={styles.langValue}>{targetLanguage.toUpperCase()}</Text>
+          </View>
         </View>
+      </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Meeting code"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="characters"
-          value={code}
-          onChangeText={setCode}
-        />
-        <Button
-          title="Join session"
-          variant="secondary"
-          onPress={join}
-          loading={busy}
-        />
+      <FlatList
+        inverted
+        data={entries}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <TranscriptBubble entry={item} />}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <EmptyState
+              icon="mic-outline"
+              title="Ready when you are"
+              subtitle="Tap the mic below and start speaking to begin interpreting."
+            />
+          </View>
+        }
+      />
 
-        {error && <Text style={styles.error}>{error}</Text>}
+      <View style={styles.controls}>
+        <View style={styles.dots}>
+          {Array.from({ length: 7 }).map((_, i) => (
+            <View key={i} style={styles.dot} />
+          ))}
+        </View>
+        <Pressable
+          onPress={isRecording ? stopRecording : startRecording}
+          disabled={processing}
+          style={({ pressed }) => [
+            styles.micButton,
+            {
+              backgroundColor: isRecording ? colors.danger : colors.accent,
+              opacity: processing ? 0.6 : pressed ? 0.85 : 1,
+              transform: [{ scale: isRecording ? 1.05 : 1 }],
+            },
+          ]}
+        >
+          <Ionicons
+            name={isRecording ? 'stop' : 'mic'}
+            size={30}
+            color={colors.white}
+          />
+        </Pressable>
+        <Text style={styles.statusText}>{statusText}</Text>
       </View>
     </SafeAreaView>
   );
@@ -87,19 +168,70 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, padding: spacing.lg },
-  greeting: { color: colors.text, fontSize: 26, fontWeight: '700' },
-  subtitle: { color: colors.textMuted, marginBottom: spacing.xl },
-  divider: { alignItems: 'center', marginVertical: spacing.lg },
-  dividerText: { color: colors.textMuted },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
+  logoBar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  logoText: { fontFamily: fonts.serif, fontSize: 15, color: colors.text },
+  langSection: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  leafLeft: { position: 'absolute', top: 4, left: 24, opacity: 0.35 },
+  leafRight: { position: 'absolute', bottom: 4, right: 24, opacity: 0.3 },
+  langBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  langPill: {
+    flex: 1,
+    backgroundColor: colors.backgroundElevated,
     borderWidth: 1,
     borderColor: colors.border,
-    color: colors.text,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
   },
-  error: { color: colors.danger, marginTop: spacing.md },
+  langLabel: { ...typography.label, fontSize: 9, marginBottom: 2 },
+  langValue: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.text },
+  swap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  list: { padding: spacing.md, flexGrow: 1, justifyContent: 'flex-end' },
+  emptyWrap: { transform: [{ scaleY: -1 }] },
+  controls: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.backgroundElevated,
+  },
+  dots: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+  },
+  statusText: { ...typography.label, marginTop: spacing.md },
+  micButton: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

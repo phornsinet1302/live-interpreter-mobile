@@ -9,9 +9,11 @@
     "splash": {
       "image": "./src/assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B1221"
+      "backgroundColor": "#F4EEE4"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.liveinterpreter.mobile",
@@ -23,14 +25,20 @@
       "package": "com.liveinterpreter.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
-        "backgroundColor": "#0B1221"
+        "backgroundColor": "#F4EEE4"
       },
-      "permissions": ["RECORD_AUDIO", "INTERNET"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "INTERNET"
+      ]
     },
     "web": {
       "favicon": "./src/assets/favicon.png"
     },
-    "plugins": ["expo-av"],
+    "plugins": [
+      "expo-av",
+      "expo-font"
+    ],
     "extra": {
       "apiBaseUrl": "https://api.example.com"
     }
