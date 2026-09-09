@@ -1,4 +1,4 @@
-import { SessionInsights, SpeakerSummary, SuggestedNextStep, TranscriptEntry } from '@/types';
+import { SessionInsights, SpeakerSummary, TranscriptEntry } from '@/types';
 
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'to', 'of',
@@ -65,48 +65,33 @@ export function generateInsights(entries: TranscriptEntry[], title?: string): Se
     keyPoints.length > 0
       ? keyPoints
           .slice(0, 3)
-          .map((line, i) => `Follow up on: "${line.slice(0, 70)}${line.length > 70 ? '…' : ''}"`)
+          .map((line) => `Follow up on: "${line.slice(0, 70)}${line.length > 70 ? '…' : ''}"`)
       : ['No clear action items were detected in this session.'];
 
-  const summary = `${title ? `"${title}" — ` : ''}${speakerNames.length > 1 ? `${speakerNames.length} speakers` : '1 speaker'} covered ${entries.length} exchange${entries.length === 1 ? '' : 's'}${keywords.length ? `, mostly around ${keywords.slice(0, 3).join(', ')}` : ''}.`;
+  const summaryHeadline = `${title ? `"${title}" — ` : ''}${speakerNames.length > 1 ? `${speakerNames.length} speakers` : '1 speaker'} covered ${entries.length} exchange${entries.length === 1 ? '' : 's'}${keywords.length ? `, mostly around ${keywords.slice(0, 3).join(', ')}` : ''}.`;
+  const summary = [summaryHeadline, ...keyPoints];
 
-  const nextSteps: SuggestedNextStep[] = [
-    {
-      id: 'q1',
-      kind: 'question',
-      label: keywords[0]
-        ? `Ask for more detail on "${keywords[0]}" before wrapping up.`
-        : 'Ask a clarifying follow-up question before wrapping up.',
-    },
-    {
-      id: 'u1',
-      kind: 'unfinished',
-      label:
-        entries.length > 0
-          ? `Revisit the last point raised by ${entries[0].speakerName}.`
-          : 'No unfinished topics detected yet.',
-    },
-    {
-      id: 'r1',
-      kind: 'recommendation',
-      label: speakerNames.length > 1
-        ? 'Recommend scheduling a short recap with all participants.'
-        : 'Recommend saving this session to History for later reference.',
-    },
+  const nextSteps: string[] = [
+    keywords[0]
+      ? `Ask for more detail on "${keywords[0]}" before wrapping up.`
+      : 'Ask a clarifying follow-up question before wrapping up.',
+    entries.length > 0
+      ? `Revisit the last point raised by ${entries[0].speakerName}.`
+      : 'No unfinished topics detected yet.',
+    speakerNames.length > 1
+      ? 'Recommend scheduling a short recap with all participants.'
+      : 'Recommend saving this session to History for later reference.',
   ];
 
-  return { summary, actionItems, keyPoints, keywords, speakerSummaries, nextSteps };
+  return { summary, actionItems, keywords, speakerSummaries, nextSteps };
 }
 
 function emptyInsights(title?: string): SessionInsights {
   return {
-    summary: `${title ? `"${title}" ` : 'This session '}has no transcript yet — start speaking to generate a summary.`,
+    summary: [`${title ? `"${title}" ` : 'This session '}has no transcript yet — start speaking to generate a summary.`],
     actionItems: [],
-    keyPoints: [],
     keywords: [],
     speakerSummaries: [],
-    nextSteps: [
-      { id: 'r1', kind: 'recommendation', label: 'Start a conversation to see AI-generated next steps here.' },
-    ],
+    nextSteps: ['Start a conversation to see AI-generated next steps here.'],
   };
 }

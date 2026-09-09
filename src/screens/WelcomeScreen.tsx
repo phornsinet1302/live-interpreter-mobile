@@ -1,11 +1,12 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
@@ -18,13 +19,18 @@ const GREETINGS: { label: string; style: object }[] = [
 
 export function WelcomeScreen() {
   const navigation = useNavigation<Nav>();
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.logoRow}>
-          <Ionicons name="chatbubble-ellipses" size={18} color={colors.accent} />
-          <Text style={styles.logo}>Live Interpreter</Text>
+          <Image
+            source={require('@/assets/logo-fluent.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
 
         <View style={styles.illustration}>
@@ -80,7 +86,8 @@ export function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: {
     flex: 1,
@@ -95,7 +102,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
-  logo: { fontFamily: fonts.serif, fontSize: 18, color: colors.text },
+  logoImage: { width: 58, height: 30 },
   illustration: {
     width: 260,
     height: 220,
@@ -154,4 +161,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dotActive: { backgroundColor: colors.accent, width: 18 },
-});
+  });
+}

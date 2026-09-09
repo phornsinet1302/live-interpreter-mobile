@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { colors, fonts, radius, spacing } from '@/utils/theme';
+import { fonts, radius, spacing } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface ChipProps {
   label: string;
@@ -9,6 +10,7 @@ interface ChipProps {
 }
 
 export function Chip({ label, tone = 'muted', style }: ChipProps) {
+  const { colors } = useTheme();
   const bg = tone === 'primary' ? colors.accentMuted : colors.surfaceHigh;
   const fg = tone === 'primary' ? colors.accent : colors.textMuted;
 
@@ -22,9 +24,15 @@ export function Chip({ label, tone = 'muted', style }: ChipProps) {
 const styles = StyleSheet.create({
   base: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs + 2,
+    paddingVertical: spacing.xxs + 3,
     borderRadius: radius.pill,
     alignSelf: 'flex-start',
   },
-  text: { fontFamily: fonts.sansSemiBold, fontSize: 12, letterSpacing: 0.3 },
+  text: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.3,
+    includeFontPadding: false,
+  },
 });

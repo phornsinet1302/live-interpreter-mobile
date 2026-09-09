@@ -18,7 +18,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.liveinterpreter.mobile",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "This app needs microphone access to capture speech for live interpretation.",
         "NSCameraUsageDescription": "This app uses the camera to capture on-screen text for translation.",
         "NSPhotoLibraryUsageDescription": "This app needs photo library access to set your profile picture."
       }
@@ -30,7 +29,6 @@
         "backgroundColor": "#F4EEE4"
       },
       "permissions": [
-        "RECORD_AUDIO",
         "INTERNET",
         "CAMERA",
         "SYSTEM_ALERT_WINDOW",
@@ -41,7 +39,12 @@
       "favicon": "./src/assets/favicon.png"
     },
     "plugins": [
-      "expo-av",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "This app needs microphone access to capture speech for live interpretation."
+        }
+      ],
       "expo-font",
       "expo-web-browser",
       "expo-image-picker",
@@ -52,10 +55,6 @@
           "color": "#C1603A"
         }
       ]
-    ],
-    "extra": {
-      "apiBaseUrl": "https://api.example.com",
-      "googleClientId": ""
-    }
+    ]
   }
 }

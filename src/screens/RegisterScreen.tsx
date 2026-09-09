@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,27 +12,33 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useSignUp, useSSO } from '@clerk/expo';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
-import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { useGoogleAuth } from '@/hooks/useGoogleAuth';
-import { colors, fonts, spacing, typography } from '@/utils/theme';
-import { ApiError } from '@/types';
+import { clerkErrorMessage } from '@/utils/clerkError';
+import { fonts, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
 export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
-  const { signUp } = useAuth();
+  const { signUp } = useSignUp();
+  const { startSSOFlow } = useSSO();
   const { completeOnboarding } = useOnboarding();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [pendingVerification, setPendingVerification] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   const canSubmit = name.trim() && email.trim() && password.length >= 6;
 
@@ -40,17 +46,68 @@ export function RegisterScreen() {
     completeOnboarding();
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
   };
-  const { promptSignIn } = useGoogleAuth(onSignedIn);
+
+  const promptGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      const { createdSessionId, setActive: setActiveSSO } = await startSSOFlow({
+        strategy: 'oauth_google',
+      });
+      if (createdSessionId && setActiveSSO) {
+        await setActiveSSO({ session: createdSessionId });
+        onSignedIn();
+      }
+    } catch (e) {
+      setError(clerkErrorMessage(e, 'Google sign-in failed.'));
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const onSubmit = async () => {
     setLoading(true);
     setError(null);
     try {
-      await signUp({ name: name.trim(), email: email.trim(), password });
-      completeOnboarding();
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      const { error: signUpError } = await signUp.password({
+        emailAddress: email.trim(),
+        password,
+        firstName: name.trim(),
+      });
+      if (signUpError) {
+        setError(clerkErrorMessage(signUpError, 'Could not create your account.'));
+        return;
+      }
+      const { error: codeError } = await signUp.verifications.sendEmailCode();
+      if (codeError) {
+        setError(clerkErrorMessage(codeError, 'Could not send a verification code.'));
+        return;
+      }
+      setPendingVerification(true);
     } catch (e) {
-      setError((e as ApiError).message);
+      setError(clerkErrorMessage(e, 'Could not create your account.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onVerify = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: verifyError } = await signUp.verifications.verifyEmailCode({
+        code: code.trim(),
+      });
+      if (verifyError) {
+        setError(clerkErrorMessage(verifyError, 'Invalid or expired code.'));
+      } else if (signUp.status === 'complete') {
+        await signUp.finalize();
+        onSignedIn();
+      } else {
+        setError('That code didn’t complete sign-up — please try again.');
+      }
+    } catch (e) {
+      setError(clerkErrorMessage(e, 'Invalid or expired code.'));
     } finally {
       setLoading(false);
     }
@@ -61,20 +118,22 @@ export function RegisterScreen() {
       <View style={styles.topBar}>
         <Pressable
           style={styles.topBarLink}
-          onPress={() => navigation.goBack()}
+          onPress={() => (pendingVerification ? setPendingVerification(false) : navigation.goBack())}
           hitSlop={12}
         >
           <Ionicons name="arrow-back" size={16} color={colors.text} />
           <Text style={styles.topBarText}>Back</Text>
         </Pressable>
-        <Pressable
-          style={styles.topBarLink}
-          onPress={() => navigation.replace('Login')}
-          hitSlop={12}
-        >
-          <Text style={styles.topBarMuted}>Have an account? </Text>
-          <Text style={styles.topBarAccent}>Sign in</Text>
-        </Pressable>
+        {!pendingVerification && (
+          <Pressable
+            style={styles.topBarLink}
+            onPress={() => navigation.replace('Login')}
+            hitSlop={12}
+          >
+            <Text style={styles.topBarMuted}>Have an account? </Text>
+            <Text style={styles.topBarAccent}>Sign in</Text>
+          </Pressable>
+        )}
       </View>
 
       <KeyboardAvoidingView
@@ -85,70 +144,111 @@ export function RegisterScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.eyebrow}>Free · Forever</Text>
-          <Text style={styles.title}>
-            Create your <Text style={styles.titleAccent}>account</Text>
-          </Text>
-          <Text style={styles.subtitle}>
-            Join thousands of translators, travelers, and wordsmiths.
-          </Text>
+          {pendingVerification ? (
+            <>
+              <Text style={styles.eyebrow}>Almost there</Text>
+              <Text style={styles.title}>
+                Verify your <Text style={styles.titleAccent}>email</Text>
+              </Text>
+              <Text style={styles.subtitle}>
+                Enter the code we sent to {email.trim()}.
+              </Text>
 
-          <View style={styles.form}>
-            <Input
-              label="Full name"
-              placeholder="Alex Chen"
-              autoCapitalize="words"
-              autoComplete="name"
-              value={name}
-              onChangeText={setName}
-            />
-            <Input
-              label="Email address"
-              placeholder="you@example.com"
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <Input
-              label="Password"
-              placeholder="At least 6 characters"
-              isPassword
-              value={password}
-              onChangeText={setPassword}
-            />
+              <View style={styles.form}>
+                <Input
+                  label="Verification code"
+                  placeholder="123456"
+                  keyboardType="number-pad"
+                  autoCapitalize="none"
+                  value={code}
+                  onChangeText={setCode}
+                />
 
-            {error && (
-              <View style={styles.errorBanner}>
-                <Ionicons name="alert-circle" size={16} color={colors.danger} />
-                <Text style={styles.errorText}>{error}</Text>
+                {error && (
+                  <View style={styles.errorBanner}>
+                    <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+
+                <Button
+                  title="Verify & continue"
+                  onPress={onVerify}
+                  loading={loading}
+                  disabled={!code.trim()}
+                  style={styles.submit}
+                />
               </View>
-            )}
+            </>
+          ) : (
+            <>
+              <Text style={styles.eyebrow}>Free · Forever</Text>
+              <Text style={styles.title}>
+                Create your <Text style={styles.titleAccent}>account</Text>
+              </Text>
+              <Text style={styles.subtitle}>
+                Join thousands of translators, travelers, and wordsmiths.
+              </Text>
 
-            <Button
-              title="Create account"
-              onPress={onSubmit}
-              loading={loading}
-              disabled={!canSubmit}
-              style={styles.submit}
-            />
+              <View style={styles.form}>
+                <Input
+                  label="Full name"
+                  placeholder="Alex Chen"
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  value={name}
+                  onChangeText={setName}
+                />
+                <Input
+                  label="Email address"
+                  placeholder="you@example.com"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  keyboardType="email-address"
+                  value={email}
+                  onChangeText={setEmail}
+                />
+                <Input
+                  label="Password"
+                  placeholder="At least 6 characters"
+                  isPassword
+                  value={password}
+                  onChangeText={setPassword}
+                />
 
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
+                {error && (
+                  <View style={styles.errorBanner}>
+                    <Ionicons name="alert-circle" size={16} color={colors.danger} />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
 
-            <GoogleSignInButton onPress={promptSignIn} />
-          </View>
+                <Button
+                  title="Create account"
+                  onPress={onSubmit}
+                  loading={loading}
+                  disabled={!canSubmit}
+                  style={styles.submit}
+                />
+
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <GoogleSignInButton onPress={promptGoogleSignIn} loading={googleLoading} />
+              </View>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   topBar: {
@@ -195,4 +295,5 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     marginHorizontal: spacing.sm,
   },
-});
+  });
+}

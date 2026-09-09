@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -6,24 +6,22 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { SelectPillGroup } from '@/components/SelectPillGroup';
-import * as meetingService from '@/services/meeting';
+import * as conversationsService from '@/services/conversations';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, radius, spacing, typography } from '@/utils/theme';
-import { ApiError } from '@/types';
+import { radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'SessionSetup'>;
-type Mode = 'create' | 'join';
 
 export function SessionSetupScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
-  const [mode, setMode] = useState<Mode>('create');
   const [title, setTitle] = useState('');
-  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   const startDemo = () => {
     navigation.replace('Session', { meetingId: `demo-${Date.now()}` });
@@ -33,8 +31,12 @@ export function SessionSetupScreen() {
     setLoading(true);
     setNotice(null);
     try {
-      const meeting = await meetingService.createMeeting(title.trim() || 'New session');
-      navigation.replace('Session', { meetingId: meeting.id });
+      const conversation = await conversationsService.createConversation({
+        title: title.trim() || 'New session',
+        sourceLanguage: 'auto',
+        targetLanguage: user?.preferredLanguage ?? 'en',
+      });
+      navigation.replace('Session', { meetingId: conversation.id });
     } catch {
       setNotice(
         "Couldn't reach the server to create a session — you can still try the flow with a demo session."
@@ -44,26 +46,8 @@ export function SessionSetupScreen() {
     }
   };
 
-  const onJoin = async () => {
-    setLoading(true);
-    setNotice(null);
-    try {
-      const meeting = await meetingService.joinMeeting(
-        code.trim().toUpperCase(),
-        user?.preferredLanguage ?? 'en'
-      );
-      navigation.replace('Session', { meetingId: meeting.id });
-    } catch {
-      setNotice(
-        "Couldn't reach the server to join that code — you can still try the flow with a demo session."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -80,32 +64,13 @@ export function SessionSetupScreen() {
             their own language.
           </Text>
 
-          <SelectPillGroup
-            options={[
-              { value: 'create', label: 'Create' },
-              { value: 'join', label: 'Join by code' },
-            ]}
-            value={mode}
-            onChange={setMode}
-          />
-
           <View style={styles.form}>
-            {mode === 'create' ? (
-              <Input
-                label="Session name"
-                placeholder="e.g. Client Kickoff Call"
-                value={title}
-                onChangeText={setTitle}
-              />
-            ) : (
-              <Input
-                label="Session code"
-                placeholder="e.g. 8F3QZ1"
-                autoCapitalize="characters"
-                value={code}
-                onChangeText={setCode}
-              />
-            )}
+            <Input
+              label="Session name"
+              placeholder="e.g. Client Kickoff Call"
+              value={title}
+              onChangeText={setTitle}
+            />
 
             {notice && (
               <View style={styles.noticeBanner}>
@@ -115,10 +80,9 @@ export function SessionSetupScreen() {
             )}
 
             <Button
-              title={mode === 'create' ? 'Create session' : 'Join session'}
-              onPress={mode === 'create' ? onCreate : onJoin}
+              title="Create session"
+              onPress={onCreate}
               loading={loading}
-              disabled={mode === 'join' && !code.trim()}
               style={styles.submit}
             />
 
@@ -138,10 +102,11 @@ export function SessionSetupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  topBar: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   flex: { flex: 1 },
+  topBar: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   container: { flexGrow: 1, padding: spacing.lg, alignItems: 'center', paddingTop: spacing.lg },
   iconWrap: {
     width: 64,
@@ -170,4 +135,5 @@ const styles = StyleSheet.create({
   },
   noticeText: { ...typography.caption, marginLeft: spacing.xs, flex: 1 },
   submit: { marginTop: spacing.xs },
-});
+  });
+}

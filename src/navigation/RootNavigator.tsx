@@ -1,13 +1,14 @@
 import React from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, Theme as NavTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { colors, fonts } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
+import { ThemeColors, fonts } from '@/utils/theme';
 import { RootStackParamList, MainTabParamList } from './types';
 
 import { WelcomeScreen } from '@/screens/WelcomeScreen';
@@ -33,18 +34,22 @@ import { NoiseSettingsScreen } from '@/screens/NoiseSettingsScreen';
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 
-const screenOptions = {
-  headerStyle: { backgroundColor: colors.background },
-  headerShadowVisible: false,
-  headerTitleStyle: { fontFamily: fonts.sansSemiBold },
-  headerTintColor: colors.text,
-  contentStyle: { backgroundColor: colors.background },
-} as const;
+function createScreenOptions(colors: ThemeColors) {
+  return {
+    headerStyle: { backgroundColor: colors.background },
+    headerShadowVisible: false,
+    headerTitleStyle: { fontFamily: fonts.sansSemiBold },
+    headerTintColor: colors.text,
+    contentStyle: { backgroundColor: colors.background },
+  } as const;
+}
 
-const authScreenOptions = {
-  ...screenOptions,
-  headerShown: false,
-} as const;
+function createAuthScreenOptions(colors: ThemeColors) {
+  return {
+    ...createScreenOptions(colors),
+    headerShown: false,
+  } as const;
+}
 
 const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
   Home: 'home',
@@ -53,6 +58,8 @@ const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> 
 };
 
 function MainTabs() {
+  const { colors } = useTheme();
+
   return (
     <Tabs.Navigator
       screenOptions={({ route }) => ({
@@ -97,19 +104,32 @@ function MainTabs() {
 export function RootNavigator() {
   const { isLoading: authLoading } = useAuth();
   const { hasOnboarded, isLoading: onboardingLoading } = useOnboarding();
+  const { colors, scheme } = useTheme();
 
   if (authLoading || onboardingLoading) {
     return (
-      <View style={styles.loader}>
+      <View style={[styles.loader, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
+  const navTheme: NavTheme = {
+    dark: scheme === 'dark',
+    colors: {
+      primary: colors.accent,
+      background: colors.background,
+      card: colors.background,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.danger,
+    },
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navTheme}>
       <RootStack.Navigator
-        screenOptions={screenOptions}
+        screenOptions={createScreenOptions(colors)}
         initialRouteName={hasOnboarded ? 'Main' : 'Welcome'}
       >
         {!hasOnboarded && (
@@ -134,17 +154,17 @@ export function RootNavigator() {
         <RootStack.Screen
           name="Login"
           component={LoginScreen}
-          options={authScreenOptions}
+          options={createAuthScreenOptions(colors)}
         />
         <RootStack.Screen
           name="Register"
           component={RegisterScreen}
-          options={authScreenOptions}
+          options={createAuthScreenOptions(colors)}
         />
         <RootStack.Screen
           name="ForgotPassword"
           component={ForgotPasswordScreen}
-          options={authScreenOptions}
+          options={createAuthScreenOptions(colors)}
         />
         <RootStack.Screen
           name="EditProfile"
@@ -211,6 +231,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
   },
 });

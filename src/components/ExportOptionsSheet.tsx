@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 export type ExportFormat = 'pdf' | 'docx' | 'txt';
 
@@ -19,6 +20,9 @@ const OPTIONS: { format: ExportFormat; label: string; sub: string; icon: keyof t
 ];
 
 export function ExportOptionsSheet({ visible, busy, onClose, onSelect }: ExportOptionsSheetProps) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -48,35 +52,37 @@ export function ExportOptionsSheet({ visible, busy, onClose, onSelect }: ExportO
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(43, 38, 32, 0.4)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.backgroundElevated,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    alignSelf: 'center',
-    marginBottom: spacing.md,
-  },
-  title: { ...typography.h3, marginBottom: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.accentMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  text: { flex: 1 },
-  label: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.text },
-  sub: { ...typography.caption, marginTop: 2 },
-});
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: 'rgba(43, 38, 32, 0.4)', justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: colors.backgroundElevated,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
+      padding: spacing.lg,
+      paddingBottom: spacing.xl,
+    },
+    handle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      alignSelf: 'center',
+      marginBottom: spacing.md,
+    },
+    title: { ...typography.h3, marginBottom: spacing.sm },
+    row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm },
+    iconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.md,
+      backgroundColor: colors.accentMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+    },
+    text: { flex: 1 },
+    label: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.text },
+    sub: { ...typography.caption, marginTop: 2 },
+  });
+}

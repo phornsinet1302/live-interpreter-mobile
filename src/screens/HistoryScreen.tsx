@@ -20,9 +20,9 @@ import { Input } from '@/components/Input';
 import { EmptyState } from '@/components/EmptyState';
 import { GuestPrompt } from '@/components/GuestPrompt';
 import { useAuth } from '@/hooks/useAuth';
-import { getHistory, deleteHistoryItem } from '@/services/history';
-import { getFavoriteIds, toggleFavorite } from '@/services/favorites';
-import { colors, radius, spacing, typography } from '@/utils/theme';
+import { getHistory, deleteHistoryItem, setFavorite } from '@/services/history';
+import { radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { formatDate } from '@/utils/format';
 import { HistoryItem } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
@@ -33,11 +33,12 @@ export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
   const { isAuthenticated } = useAuth();
   const [items, setItems] = useState<HistoryItem[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   useFocusEffect(
     useCallback(() => {
@@ -49,11 +50,10 @@ export function HistoryScreen() {
       (async () => {
         setLoading(true);
         try {
-          const [data, favs] = await Promise.all([getHistory(), getFavoriteIds()]);
-          if (active) {
-            setItems(data);
-            setFavoriteIds(favs);
-          }
+          const data = await getHistory();
+          if (active) setItems(data);
+        } catch {
+          // Keep whatever was already loaded rather than crashing the screen.
         } finally {
           if (active) setLoading(false);
         }
@@ -78,14 +78,19 @@ export function HistoryScreen() {
     return items.filter((item) => {
       if (q && !item.title.toLowerCase().includes(q)) return false;
       if (languageFilter && item.source !== languageFilter && item.target !== languageFilter) return false;
-      if (favoritesOnly && !favoriteIds.includes(item.id)) return false;
+      if (favoritesOnly && !item.favorite) return false;
       return true;
     });
-  }, [items, query, languageFilter, favoritesOnly, favoriteIds]);
+  }, [items, query, languageFilter, favoritesOnly]);
 
-  const onToggleFavorite = useCallback(async (id: string) => {
-    const next = await toggleFavorite(id);
-    setFavoriteIds(next);
+  const onToggleFavorite = useCallback(async (item: HistoryItem) => {
+    const next = !item.favorite;
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, favorite: next } : i)));
+    try {
+      await setFavorite(item.id, next);
+    } catch {
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, favorite: !next } : i)));
+    }
   }, []);
 
   const onDelete = useCallback((item: HistoryItem) => {
@@ -141,6 +146,7 @@ export function HistoryScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
         contentContainerStyle={styles.filterRow}
       >
         <Pressable onPress={() => setFavoritesOnly((f) => !f)}>
@@ -183,12 +189,12 @@ export function HistoryScreen() {
               </View>
               <View style={styles.cardActions}>
                 <Pressable
-                  onPress={() => onToggleFavorite(item.id)}
+                  onPress={() => onToggleFavorite(item)}
                   hitSlop={8}
                   style={styles.iconButton}
                 >
                   <Ionicons
-                    name={favoriteIds.includes(item.id) ? 'star' : 'star-outline'}
+                    name={item.favorite ? 'star' : 'star-outline'}
                     size={18}
                     color={colors.accent}
                   />
@@ -216,7 +222,8 @@ export function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   guestSafe: { flex: 1, backgroundColor: colors.background, justifyContent: 'center' },
   center: {
@@ -227,7 +234,13 @@ const styles = StyleSheet.create({
   },
   searchWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
   searchInput: { marginBottom: 0 },
-  filterRow: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.xs },
+  filterScroll: { flexGrow: 0 },
+  filterRow: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
   filterChip: { marginRight: spacing.xs },
   list: { padding: spacing.md, flexGrow: 1 },
   card: {
@@ -261,4 +274,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+  });
+}

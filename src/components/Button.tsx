@@ -7,7 +7,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius, spacing } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -21,15 +22,14 @@ interface ButtonProps {
   style?: ViewStyle;
 }
 
-const VARIANT_STYLES: Record<
-  Variant,
-  { bg: string; border?: string; text: string }
-> = {
-  primary: { bg: colors.primary, text: colors.white },
-  secondary: { bg: 'transparent', border: colors.borderStrong, text: colors.text },
-  danger: { bg: colors.dangerMuted, border: colors.danger, text: colors.danger },
-  ghost: { bg: 'transparent', text: colors.accent },
-};
+function variantStyles(colors: ThemeColors): Record<Variant, { bg: string; border?: string; text: string }> {
+  return {
+    primary: { bg: colors.primary, text: colors.primaryText },
+    secondary: { bg: 'transparent', border: colors.borderStrong, text: colors.text },
+    danger: { bg: colors.dangerMuted, border: colors.danger, text: colors.danger },
+    ghost: { bg: 'transparent', text: colors.accent },
+  };
+}
 
 export function Button({
   title,
@@ -40,7 +40,8 @@ export function Button({
   disabled = false,
   style,
 }: ButtonProps) {
-  const v = VARIANT_STYLES[variant];
+  const { colors } = useTheme();
+  const v = variantStyles(colors)[variant];
 
   return (
     <Pressable

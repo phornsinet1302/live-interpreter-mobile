@@ -28,6 +28,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       try {
         const value = await AsyncStorage.getItem(ONBOARDED_KEY);
         setHasOnboarded(value === 'true');
+      } catch {
+        // Unreadable storage — fall back to showing onboarding again.
       } finally {
         setIsLoading(false);
       }

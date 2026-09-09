@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,42 +12,72 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useSignIn, useSSO } from '@clerk/expo';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
-import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { useGoogleAuth } from '@/hooks/useGoogleAuth';
-import { colors, fonts, spacing, typography } from '@/utils/theme';
-import { ApiError } from '@/types';
+import { clerkErrorMessage } from '@/utils/clerkError';
+import { fonts, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const navigation = useNavigation<Nav>();
-  const { signIn } = useAuth();
+  const { signIn } = useSignIn();
+  const { startSSOFlow } = useSSO();
   const { completeOnboarding } = useOnboarding();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   const onSignedIn = () => {
     completeOnboarding();
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
   };
-  const { promptSignIn } = useGoogleAuth(onSignedIn);
+
+  const promptGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      const { createdSessionId, setActive: setActiveSSO } = await startSSOFlow({
+        strategy: 'oauth_google',
+      });
+      if (createdSessionId && setActiveSSO) {
+        await setActiveSSO({ session: createdSessionId });
+        onSignedIn();
+      }
+    } catch (e) {
+      setError(clerkErrorMessage(e, 'Google sign-in failed.'));
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const onSubmit = async () => {
     setLoading(true);
     setError(null);
     try {
-      await signIn({ email: email.trim(), password });
-      completeOnboarding();
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      const { error: signInError } = await signIn.password({
+        identifier: email.trim(),
+        password,
+      });
+      if (signInError) {
+        setError(clerkErrorMessage(signInError, 'Could not sign in.'));
+      } else if (signIn.status === 'complete') {
+        await signIn.finalize();
+        onSignedIn();
+      } else {
+        setError('Additional verification is required for this account.');
+      }
     } catch (e) {
-      setError((e as ApiError).message);
+      setError(clerkErrorMessage(e, 'Could not sign in.'));
     } finally {
       setLoading(false);
     }
@@ -135,7 +165,7 @@ export function LoginScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            <GoogleSignInButton onPress={promptSignIn} />
+            <GoogleSignInButton onPress={promptGoogleSignIn} loading={googleLoading} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -143,7 +173,8 @@ export function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   topBar: {
@@ -192,4 +223,5 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     marginHorizontal: spacing.sm,
   },
-});
+  });
+}

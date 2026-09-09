@@ -1,6 +1,10 @@
 import { AnalyticsSnapshot } from '@/types';
 
 export const MOCK_ANALYTICS: AnalyticsSnapshot = {
+  totalConversations: 24,
+  conversationsByStatus: { waiting: 1, active: 1, paused: 0, ended: 20, archived: 2 },
+  totalMessages: 312,
+  averageConfidence: 0.94,
   daily: [
     { label: 'Mon', value: 12 },
     { label: 'Tue', value: 18 },
@@ -11,28 +15,24 @@ export const MOCK_ANALYTICS: AnalyticsSnapshot = {
     { label: 'Sun', value: 7 },
   ],
   weekly: [
-    { label: 'W1', value: 64 },
-    { label: 'W2', value: 88 },
-    { label: 'W3', value: 71 },
-    { label: 'W4', value: 102 },
+    { label: '01', value: 64 },
+    { label: '02', value: 88 },
+    { label: '03', value: 71 },
+    { label: '04', value: 102 },
   ],
   monthly: [
-    { label: 'Jun', value: 210 },
-    { label: 'Jul', value: 265 },
-    { label: 'Aug', value: 298 },
-    { label: 'Sep', value: 174 },
+    { label: '06', value: 210 },
+    { label: '07', value: 265 },
+    { label: '08', value: 298 },
+    { label: '09', value: 174 },
   ],
-  totalToday: 22,
-  totalWeek: 112,
-  totalMonth: 947,
-  averageAccuracy: 0.94,
-  aiSummaryUsage: 38,
-  historyUsage: 156,
-  languages: [
-    { language: 'en', name: 'English', count: 412, share: 0.43 },
-    { language: 'km', name: 'Khmer', count: 289, share: 0.31 },
-    { language: 'fr', name: 'French', count: 96, share: 0.1 },
-    { language: 'es', name: 'Spanish', count: 74, share: 0.08 },
-    { language: 'zh', name: 'Chinese', count: 76, share: 0.08 },
+  conversationsSummarized: 15,
+  endedConversations: 20,
+  languagePairs: [
+    { sourceLanguage: 'en', targetLanguage: 'km', count: 142, share: 0.43 },
+    { sourceLanguage: 'km', targetLanguage: 'en', count: 96, share: 0.29 },
+    { sourceLanguage: 'en', targetLanguage: 'fr', count: 46, share: 0.14 },
+    { sourceLanguage: 'en', targetLanguage: 'es', count: 28, share: 0.08 },
+    { sourceLanguage: 'en', targetLanguage: 'zh', count: 20, share: 0.06 },
   ],
 };

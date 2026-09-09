@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
-import { colors, radius, spacing, typography } from '@/utils/theme';
+import { radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -17,6 +18,8 @@ interface GuestPromptProps {
 
 export function GuestPrompt({ icon, title, subtitle }: GuestPromptProps) {
   const navigation = useNavigation<Nav>();
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   return (
     <View style={styles.container}>
@@ -44,29 +47,31 @@ export function GuestPrompt({ icon, title, subtitle }: GuestPromptProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
-  },
-  iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.xl,
-    backgroundColor: colors.accentMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  title: { ...typography.h2, textAlign: 'center' },
-  subtitle: {
-    ...typography.bodyMuted,
-    textAlign: 'center',
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
-  },
-  actions: { width: '100%', gap: spacing.sm },
-  button: { width: '100%' },
-});
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xxl,
+    },
+    iconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: radius.xl,
+      backgroundColor: colors.accentMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+    },
+    title: { ...typography.h2, textAlign: 'center' },
+    subtitle: {
+      ...typography.bodyMuted,
+      textAlign: 'center',
+      marginTop: spacing.xs,
+      marginBottom: spacing.lg,
+    },
+    actions: { width: '100%', gap: spacing.sm },
+    button: { width: '100%' },
+  });
+}

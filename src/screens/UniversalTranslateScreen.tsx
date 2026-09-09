@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Platform,
@@ -20,10 +19,11 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ToggleRow } from '@/components/ToggleRow';
-import { translate, translateImage } from '@/services/translation';
+import { translate, translateLookup } from '@/services/translation';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
-import { ApiError } from '@/types';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
+import { ApiError, WordLookupResult } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'UniversalTranslate'>;
@@ -39,12 +39,17 @@ export function UniversalTranslateScreen() {
   const [clipboardResult, setClipboardResult] = useState<string | null>(null);
   const [clipboardBusy, setClipboardBusy] = useState(false);
 
-  const [ocrBusy, setOcrBusy] = useState(false);
-  const [ocrNote, setOcrNote] = useState<string | null>(null);
+  const [ocrCaptured, setOcrCaptured] = useState(false);
 
   const [webInput, setWebInput] = useState('');
   const [webResult, setWebResult] = useState<string | null>(null);
   const [webBusy, setWebBusy] = useState(false);
+
+  const [lookupText, setLookupText] = useState('');
+  const [lookupResult, setLookupResult] = useState<WordLookupResult | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   const onOverlayToggle = (value: boolean) => {
     setOverlayEnabled(value);
@@ -97,18 +102,22 @@ export function UniversalTranslateScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
+    // This backend doesn't expose an OCR/image-translate endpoint yet, so the
+    // photo is captured but not sent anywhere.
+    setOcrCaptured(true);
+  };
 
-    setOcrBusy(true);
-    setOcrNote(null);
+  const onLookup = async () => {
+    if (!lookupText.trim()) return;
+    setLookupBusy(true);
+    setLookupResult(null);
     try {
-      const translated = await translateImage(result.assets[0].uri, target);
-      setOcrNote(`Translated: ${translated.translatedText}`);
-    } catch {
-      setOcrNote(
-        'Photo captured. Text recognition needs a backend with OCR support (e.g. ML Kit or Cloud Vision) connected to /translate/image to return results.'
-      );
+      const result = await translateLookup(lookupText, 'auto', target);
+      setLookupResult(result);
+    } catch (e) {
+      Alert.alert('Lookup failed', (e as ApiError).message ?? 'Please try again.');
     } finally {
-      setOcrBusy(false);
+      setLookupBusy(false);
     }
   };
 
@@ -134,7 +143,7 @@ export function UniversalTranslateScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -197,8 +206,50 @@ export function UniversalTranslateScreen() {
             onPress={onCaptureScreenText}
             style={styles.actionButton}
           />
-          {ocrBusy && <ActivityIndicator style={styles.spinner} color={colors.accent} />}
-          {ocrNote ? <Text style={styles.noteText}>{ocrNote}</Text> : null}
+          {ocrCaptured ? (
+            <Text style={styles.noteText}>
+              Photo captured. This backend doesn't have text-recognition (OCR) support yet — once
+              an endpoint like /translate/image is added, this card will send the photo there.
+            </Text>
+          ) : null}
+        </Card>
+
+        <Card style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Ionicons name="book-outline" size={16} color={colors.accent} />
+            <Text style={styles.cardHeader}>Word lookup</Text>
+          </View>
+          <Text style={styles.cardSubtitle}>
+            Look up a word or phrase with phonetics and example sentences.
+          </Text>
+          <Input
+            placeholder="e.g. serendipity"
+            value={lookupText}
+            onChangeText={setLookupText}
+            autoCapitalize="none"
+            containerStyle={styles.webInput}
+          />
+          <Button
+            title="Look up"
+            variant="secondary"
+            onPress={onLookup}
+            loading={lookupBusy}
+            disabled={!lookupText.trim()}
+            style={styles.actionButton}
+          />
+          {lookupResult ? (
+            <View style={styles.resultBox}>
+              <Text style={styles.resultText}>{lookupResult.translatedText}</Text>
+              {lookupResult.phonetic ? (
+                <Text style={styles.phoneticText}>/{lookupResult.phonetic}/</Text>
+              ) : null}
+              {lookupResult.examples.map((ex, i) => (
+                <Text key={i} style={styles.exampleText}>
+                  · {ex}
+                </Text>
+              ))}
+            </View>
+          ) : null}
         </Card>
 
         <Card style={styles.card}>
@@ -229,7 +280,8 @@ export function UniversalTranslateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -256,9 +308,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   resultText: { fontFamily: fonts.serifItalic, fontSize: 16, color: colors.text },
+  phoneticText: { ...typography.caption, marginTop: spacing.xs },
+  exampleText: { ...typography.bodyMuted, fontSize: 13, marginTop: spacing.xs },
   copyResultButton: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm },
   copyResultText: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.accent, marginLeft: 4 },
-  spinner: { marginTop: spacing.sm },
   noteText: { ...typography.caption, marginTop: spacing.sm },
   webInput: { marginTop: spacing.xs },
-});
+  });
+}

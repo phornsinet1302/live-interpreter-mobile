@@ -1,22 +1,27 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
 
 import { TranscriptBubble } from '@/components/TranscriptBubble';
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { Chip } from '@/components/Chip';
-import { transcribeAndTranslate } from '@/services/translation';
-import * as meetingService from '@/services/meeting';
+import { Input } from '@/components/Input';
+import * as conversationsService from '@/services/conversations';
+import * as speakersService from '@/services/speakers';
+import * as messagesService from '@/services/messages';
+import * as subtitlesService from '@/services/subtitles';
+import { getMainSocket } from '@/services/socket';
 import { useAuth } from '@/hooks/useAuth';
+import { useLiveTranscription } from '@/hooks/useLiveTranscription';
 import { mockParticipants, randomDemoLine } from '@/mocks/session';
 import { languageName } from '@/mocks/languages';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
-import { Participant, TranscriptEntry } from '@/types';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
+import { Speaker, TranscriptEntry } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Session'>;
@@ -32,19 +37,28 @@ export function SessionScreen() {
   const isDemo = meetingId.startsWith('demo-');
   const { user } = useAuth();
 
-  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [participants, setParticipants] = useState<Speaker[]>([]);
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [addingSpeaker, setAddingSpeaker] = useState(false);
+  const [newSpeakerLabel, setNewSpeakerLabel] = useState('');
   const counter = useRef(0);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
         if (isDemo) throw new Error('demo');
-        const remote = await meetingService.getParticipants(meetingId);
-        if (active) setParticipants(remote);
+        await conversationsService.startConversation(meetingId);
+        const remote = await speakersService.listSpeakers(meetingId);
+        if (active) {
+          setParticipants(
+            remote.length
+              ? remote
+              : [{ id: 'host', label: user?.name ?? 'You', displayName: user?.name, isHost: true }]
+          );
+        }
       } catch {
         if (active) {
           setParticipants(mockParticipants(user?.name ?? 'You', user?.preferredLanguage ?? 'en'));
@@ -56,44 +70,67 @@ export function SessionScreen() {
     };
   }, [meetingId, isDemo, user]);
 
+  useEffect(() => {
+    if (isDemo) return;
+    const socket = getMainSocket();
+    if (!socket) return;
+    socket.emit('conversation:join', meetingId);
+
+    const onMessage = (raw: Parameters<typeof messagesService.mapMessage>[0]) => {
+      const message = messagesService.mapMessage(raw);
+      setEntries((prev) => (prev.some((e) => e.id === message.id) ? prev : [message, ...prev]));
+    };
+    const onSpeakerUpdate = (speaker: Speaker) => {
+      setParticipants((prev) => {
+        const exists = prev.some((p) => p.id === speaker.id);
+        return exists ? prev.map((p) => (p.id === speaker.id ? { ...p, ...speaker } : p)) : [...prev, speaker];
+      });
+    };
+    socket.on('message:new', onMessage);
+    socket.on('speaker:update', onSpeakerUpdate);
+
+    return () => {
+      socket.emit('conversation:leave', meetingId);
+      socket.off('message:new', onMessage);
+      socket.off('speaker:update', onSpeakerUpdate);
+    };
+  }, [meetingId, isDemo]);
+
   const targetLanguage = user?.preferredLanguage ?? 'en';
 
-  const startRecording = useCallback(async () => {
-    const permission = await Audio.requestPermissionsAsync();
-    if (!permission.granted) return;
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-    const { recording: rec } = await Audio.Recording.createAsync(
-      Audio.RecordingOptionsPresets.HIGH_QUALITY
-    );
-    setRecording(rec);
-  }, []);
-
-  const stopRecording = useCallback(async () => {
-    if (!recording) return;
-    setProcessing(true);
-    try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
-      if (!uri) return;
-      const result = await transcribeAndTranslate(uri, 'auto', targetLanguage);
-      setEntries((prev) => [
-        {
+  const { listening, pendingCount, start, stop } = useLiveTranscription({
+    sourceLanguage: 'auto',
+    targetLanguage,
+    onSegment: useCallback(
+      (result, startedAt) => {
+        const localEntry: TranscriptEntry = {
           id: `local-${counter.current++}`,
           speakerId: user?.id ?? 'me',
           speakerName: user?.name ?? 'You',
           original: result.sourceText,
           translated: result.translatedText,
-          source: result.detectedLanguage ?? result.source,
+          source: result.source,
           target: result.target,
-          timestamp: Date.now(),
-        },
-        ...prev,
-      ]);
-    } finally {
-      setProcessing(false);
-    }
-  }, [recording, user, targetLanguage]);
+          timestamp: startedAt,
+        };
+        setEntries((prev) => [localEntry, ...prev].sort((a, b) => b.timestamp - a.timestamp));
+
+        if (!isDemo) {
+          messagesService
+            .addMessage(meetingId, { originalText: result.sourceText })
+            .catch(() => {});
+          subtitlesService
+            .pushCaption(meetingId, {
+              source: result.sourceText,
+              translated: result.translatedText,
+              speakerName: user?.name,
+            })
+            .catch(() => {});
+        }
+      },
+      [user, isDemo, meetingId]
+    ),
+  });
 
   const addDemoReply = useCallback(() => {
     const others = participants.filter((p) => !p.isHost);
@@ -104,10 +141,10 @@ export function SessionScreen() {
       {
         id: `demo-${counter.current++}`,
         speakerId: speaker.id,
-        speakerName: speaker.name,
+        speakerName: speaker.displayName ?? speaker.label,
         original: line.original,
         translated: line.translated,
-        source: speaker.language,
+        source: speaker.language ?? 'auto',
         target: targetLanguage,
         timestamp: Date.now(),
       },
@@ -115,14 +152,31 @@ export function SessionScreen() {
     ]);
   }, [participants, targetLanguage]);
 
+  const onAddSpeaker = useCallback(async () => {
+    const label = newSpeakerLabel.trim();
+    if (!label || isDemo) return;
+    try {
+      const speaker = await speakersService.addSpeaker(meetingId, { label });
+      setParticipants((prev) => [...prev, speaker]);
+    } catch {
+      // No backend — nothing to add.
+    } finally {
+      setNewSpeakerLabel('');
+      setAddingSpeaker(false);
+    }
+  }, [newSpeakerLabel, isDemo, meetingId]);
+
   const endSession = () => {
+    if (!isDemo) {
+      conversationsService.endConversation(meetingId).catch(() => {});
+    }
     navigation.replace('Summary', {
       entries,
+      historyId: isDemo ? undefined : meetingId,
       title: isDemo ? 'Demo session' : `Session ${meetingId.slice(0, 6).toUpperCase()}`,
     });
   };
 
-  const isRecording = !!recording;
   const multiSpeaker = participants.length > 1;
 
   return (
@@ -142,12 +196,33 @@ export function SessionScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.participants}>
         {participants.map((p) => (
           <View key={p.id} style={styles.participantChip}>
-            <Avatar name={p.name} size={30} />
-            <Text style={styles.participantName} numberOfLines={1}>{p.isHost ? 'You' : p.name}</Text>
-            <Chip label={languageName(p.language)} tone="muted" style={styles.participantLang} />
+            <Avatar name={p.displayName ?? p.label} size={30} />
+            <Text style={styles.participantName} numberOfLines={1}>
+              {p.isHost ? 'You' : p.displayName ?? p.label}
+            </Text>
+            {p.language ? <Chip label={languageName(p.language)} tone="muted" style={styles.participantLang} /> : null}
           </View>
         ))}
+        {!isDemo && (
+          <Pressable onPress={() => setAddingSpeaker((v) => !v)} style={styles.addSpeakerChip}>
+            <Ionicons name="add" size={18} color={colors.accent} />
+          </Pressable>
+        )}
       </ScrollView>
+
+      {addingSpeaker && (
+        <View style={styles.addSpeakerRow}>
+          <Input
+            placeholder="Speaker name"
+            value={newSpeakerLabel}
+            onChangeText={setNewSpeakerLabel}
+            containerStyle={styles.addSpeakerInput}
+          />
+          <Pressable onPress={onAddSpeaker} style={styles.addSpeakerConfirm}>
+            <Ionicons name="checkmark" size={18} color={colors.white} />
+          </Pressable>
+        </View>
+      )}
 
       {isDemo && participants.some((p) => !p.isHost) && (
         <Pressable onPress={addDemoReply} style={styles.demoReplyButton}>
@@ -175,18 +250,20 @@ export function SessionScreen() {
 
       <View style={styles.controls}>
         <Pressable
-          onPress={isRecording ? stopRecording : startRecording}
-          disabled={processing}
+          onPress={listening ? stop : start}
           style={({ pressed }) => [
             styles.micButton,
             {
-              backgroundColor: isRecording ? colors.danger : colors.accent,
-              opacity: processing ? 0.6 : pressed ? 0.85 : 1,
+              backgroundColor: listening ? colors.danger : colors.accent,
+              opacity: pressed ? 0.85 : 1,
             },
           ]}
         >
-          <Ionicons name={isRecording ? 'stop' : 'mic'} size={26} color={colors.white} />
+          <Ionicons name={listening ? 'stop' : 'mic'} size={26} color={colors.white} />
         </Pressable>
+        <Text style={styles.statusText}>
+          {listening ? (pendingCount > 0 ? 'Listening — translating…' : 'Listening…') : 'Tap to speak'}
+        </Text>
         <Pressable onPress={endSession} style={styles.endButton}>
           <Text style={styles.endText}>End session · View summary</Text>
         </Pressable>
@@ -195,7 +272,8 @@ export function SessionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -211,6 +289,32 @@ const styles = StyleSheet.create({
   participantChip: { alignItems: 'center', width: 76 },
   participantName: { fontFamily: fonts.sansSemiBold, fontSize: 11, color: colors.text, marginTop: 4 },
   participantLang: { marginTop: 4 },
+  addSpeakerChip: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
+  addSpeakerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  addSpeakerInput: { flex: 1, marginBottom: 0 },
+  addSpeakerConfirm: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   demoReplyButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -239,6 +343,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  statusText: { ...typography.label, marginTop: spacing.sm },
   endButton: { paddingVertical: spacing.xs },
   endText: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.accent },
-});
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -8,10 +8,10 @@ import { Chip } from '@/components/Chip';
 import { TranscriptBubble } from '@/components/TranscriptBubble';
 import { EmptyState } from '@/components/EmptyState';
 import { ExportOptionsSheet, ExportFormat } from '@/components/ExportOptionsSheet';
-import { getTranscript, deleteHistoryItem } from '@/services/history';
-import { exportTranscriptToPdf, exportTranscriptToTxt, exportTranscriptToWord } from '@/services/export';
-import { toggleFavorite } from '@/services/favorites';
-import { colors, fonts, spacing, typography } from '@/utils/theme';
+import { getTranscript, deleteHistoryItem, setFavorite as setConversationFavorite } from '@/services/history';
+import { exportTranscript } from '@/services/export';
+import { fonts, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { ApiError, TranscriptEntry } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
@@ -28,6 +28,8 @@ export function HistoryDetailScreen() {
   const [favorite, setFavorite] = useState(!!item.favorite);
   const [exportSheetVisible, setExportSheetVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   useEffect(() => {
     let active = true;
@@ -47,17 +49,20 @@ export function HistoryDetailScreen() {
   }, [item.id]);
 
   const onToggleFavorite = useCallback(async () => {
-    setFavorite((f) => !f);
-    await toggleFavorite(item.id);
-  }, [item.id]);
+    const next = !favorite;
+    setFavorite(next);
+    try {
+      await setConversationFavorite(item.id, next);
+    } catch {
+      setFavorite(!next);
+    }
+  }, [item.id, favorite]);
 
   const onExport = useCallback(
     async (format: ExportFormat) => {
       setExporting(true);
       try {
-        if (format === 'pdf') await exportTranscriptToPdf(item, entries);
-        else if (format === 'txt') await exportTranscriptToTxt(item, entries);
-        else await exportTranscriptToWord(item, entries);
+        await exportTranscript(item, entries, format);
         setExportSheetVisible(false);
       } catch (e) {
         Alert.alert('Export failed', (e as ApiError).message ?? 'Please try again.');
@@ -89,7 +94,7 @@ export function HistoryDetailScreen() {
   const multiSpeaker = new Set(entries.map((e) => e.speakerName)).size > 1;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -153,7 +158,8 @@ export function HistoryDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -192,4 +198,5 @@ const styles = StyleSheet.create({
   actionLabel: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.accent },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { padding: spacing.md, flexGrow: 1 },
-});
+  });
+}

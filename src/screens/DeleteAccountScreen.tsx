@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -7,7 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, radius, spacing, typography } from '@/utils/theme';
+import { radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { ApiError } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
@@ -21,6 +22,8 @@ export function DeleteAccountScreen() {
   const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   const onConfirm = async () => {
     setLoading(true);
@@ -36,7 +39,7 @@ export function DeleteAccountScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -92,7 +95,8 @@ export function DeleteAccountScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   topBar: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   flex: { flex: 1 },
@@ -125,4 +129,5 @@ const styles = StyleSheet.create({
   errorText: { color: colors.danger, marginLeft: spacing.xs, flexShrink: 1 },
   submit: { marginTop: spacing.xs },
   cancel: { marginTop: spacing.sm, alignSelf: 'center' },
-});
+  });
+}

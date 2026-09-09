@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -27,6 +28,8 @@ export function Input({
   style,
   ...rest
 }: InputProps) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [focused, setFocused] = useState(false);
   const [secure, setSecure] = useState(!!isPassword);
 
@@ -77,31 +80,33 @@ export function Input({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { marginBottom: spacing.md },
-  label: { ...typography.label, marginBottom: spacing.xs },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.surface,
-    paddingHorizontal: spacing.md,
-  },
-  fieldFocused: { borderColor: colors.accent, backgroundColor: colors.backgroundElevated },
-  fieldError: { borderColor: colors.danger },
-  icon: { marginRight: spacing.sm },
-  input: {
-    flex: 1,
-    color: colors.text,
-    fontFamily: fonts.sans,
-    fontSize: 15,
-    paddingVertical: spacing.md,
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 12,
-    marginTop: spacing.xs,
-  },
-});
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
+    container: { marginBottom: spacing.md },
+    label: { ...typography.label, marginBottom: spacing.xs },
+    field: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderColor: colors.surface,
+      paddingHorizontal: spacing.md,
+    },
+    fieldFocused: { borderColor: colors.accent, backgroundColor: colors.backgroundElevated },
+    fieldError: { borderColor: colors.danger },
+    icon: { marginRight: spacing.sm },
+    input: {
+      flex: 1,
+      color: colors.text,
+      fontFamily: fonts.sans,
+      fontSize: 15,
+      paddingVertical: spacing.md,
+    },
+    errorText: {
+      color: colors.danger,
+      fontSize: 12,
+      marginTop: spacing.xs,
+    },
+  });
+}

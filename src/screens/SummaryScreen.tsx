@@ -9,18 +9,15 @@ import { Chip } from '@/components/Chip';
 import { EmptyState } from '@/components/EmptyState';
 import { generateInsights } from '@/mocks/insights';
 import { getTranscript } from '@/services/history';
-import { colors, fonts, spacing, typography } from '@/utils/theme';
-import { SessionInsights, SuggestedNextStep, TranscriptEntry } from '@/types';
+import * as summaryService from '@/services/summary';
+import * as suggestionsService from '@/services/suggestions';
+import { fonts, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
+import { SessionInsights, TranscriptEntry } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Summary'>;
 type Rt = RouteProp<RootStackParamList, 'Summary'>;
-
-const NEXT_STEP_ICONS: Record<SuggestedNextStep['kind'], keyof typeof Ionicons.glyphMap> = {
-  question: 'help-circle-outline',
-  unfinished: 'time-outline',
-  recommendation: 'bulb-outline',
-};
 
 export function SummaryScreen() {
   const navigation = useNavigation<Nav>();
@@ -28,17 +25,53 @@ export function SummaryScreen() {
   const { entries: paramEntries, historyId, title } = route.params ?? {};
 
   const [entries, setEntries] = useState<TranscriptEntry[]>(paramEntries ?? []);
-  const [loading, setLoading] = useState(!!historyId && !paramEntries);
+  const [insights, setInsights] = useState<SessionInsights | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [preview, setPreview] = useState(false);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   useEffect(() => {
-    if (!historyId || paramEntries) return;
     let active = true;
     (async () => {
+      setLoading(true);
       try {
-        const remote = await getTranscript(historyId);
-        if (active) setEntries(remote);
+        let transcript = paramEntries;
+        if (!transcript && historyId) {
+          transcript = await getTranscript(historyId);
+          if (active) setEntries(transcript);
+        }
+        transcript = transcript ?? [];
+
+        let result: SessionInsights;
+        if (historyId) {
+          let summary = await summaryService.getSummary(historyId);
+          if (!summary) summary = await summaryService.generateSummary(historyId);
+          let nextSteps: string[] = [];
+          try {
+            nextSteps = await suggestionsService.listSuggestions(historyId);
+            if (nextSteps.length === 0) nextSteps = await suggestionsService.generateSuggestions(historyId);
+          } catch {
+            // No suggestions yet — leave the section empty rather than failing the whole screen.
+          }
+          result = { ...summary, nextSteps: nextSteps.length ? nextSteps : summary.nextSteps };
+        } else if (transcript.length > 0) {
+          const chronological = [...transcript].reverse();
+          const exchanges = chronological.map((e) => ({ source: e.original, translated: e.translated }));
+          const sourceLanguage = chronological[0]?.source ?? 'en';
+          const targetLanguage = chronological[0]?.target ?? 'en';
+          result = await summaryService.previewSummary(exchanges, sourceLanguage, targetLanguage);
+          setPreview(true);
+        } else {
+          result = generateInsights([], title);
+          setPreview(true);
+        }
+        if (active) setInsights(result);
       } catch {
-        // No backend yet — the insights below simply reflect an empty transcript.
+        if (active) {
+          setInsights(generateInsights(entries, title));
+          setPreview(true);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -46,12 +79,11 @@ export function SummaryScreen() {
     return () => {
       active = false;
     };
-  }, [historyId, paramEntries]);
-
-  const insights: SessionInsights = useMemo(() => generateInsights(entries, title), [entries, title]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyId, title]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -60,27 +92,19 @@ export function SummaryScreen() {
         <View style={{ width: 20 }} />
       </View>
 
-      {loading ? (
+      {loading || !insights ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
-          <Card style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Ionicons name="sparkles-outline" size={16} color={colors.accent} />
-              <Text style={styles.cardHeader}>Summary</Text>
-            </View>
-            <Text style={styles.body}>{insights.summary}</Text>
-          </Card>
-
-          {insights.keyPoints.length > 0 && (
+          {insights.summary.length > 0 && (
             <Card style={styles.card}>
               <View style={styles.cardHeaderRow}>
-                <Ionicons name="list-outline" size={16} color={colors.accent} />
-                <Text style={styles.cardHeader}>Key discussion points</Text>
+                <Ionicons name="sparkles-outline" size={16} color={colors.accent} />
+                <Text style={styles.cardHeader}>Summary</Text>
               </View>
-              {insights.keyPoints.map((point, i) => (
+              {insights.summary.map((point, i) => (
                 <View key={i} style={styles.bulletRow}>
                   <View style={styles.bulletDot} />
                   <Text style={styles.bulletText}>{point}</Text>
@@ -133,24 +157,26 @@ export function SummaryScreen() {
             </Card>
           )}
 
-          <Card style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Ionicons name="arrow-forward-circle-outline" size={16} color={colors.accent} />
-              <Text style={styles.cardHeader}>Suggested next steps</Text>
-            </View>
-            {insights.nextSteps.map((step) => (
-              <View key={step.id} style={styles.actionRow}>
-                <Ionicons name={NEXT_STEP_ICONS[step.kind]} size={16} color={colors.accent} />
-                <Text style={styles.actionText}>{step.label}</Text>
+          {insights.nextSteps.length > 0 && (
+            <Card style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Ionicons name="arrow-forward-circle-outline" size={16} color={colors.accent} />
+                <Text style={styles.cardHeader}>Suggested next steps</Text>
               </View>
-            ))}
-          </Card>
+              {insights.nextSteps.map((step, i) => (
+                <View key={i} style={styles.actionRow}>
+                  <Ionicons name="bulb-outline" size={16} color={colors.accent} />
+                  <Text style={styles.actionText}>{step}</Text>
+                </View>
+              ))}
+            </Card>
+          )}
 
-          {entries.length === 0 && (
+          {preview && (
             <EmptyState
               icon="sparkles-outline"
-              title="Preview data"
-              subtitle="This is a locally generated preview — connect an AI backend for higher-quality summaries."
+              title="Preview"
+              subtitle="Generated from this transcript directly — sign in and save a session to keep AI summaries in History."
             />
           )}
         </ScrollView>
@@ -159,7 +185,8 @@ export function SummaryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -193,4 +220,5 @@ const styles = StyleSheet.create({
   keywordChip: { marginRight: 0 },
   speakerRow: { marginTop: spacing.sm },
   speakerName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.accent, marginBottom: 2 },
-});
+  });
+}

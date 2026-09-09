@@ -1,24 +1,33 @@
-import client from './api';
+import * as conversationsService from './conversations';
+import * as messagesService from './messages';
 import { HistoryItem, TranscriptEntry } from '@/types';
 
-export async function getHistory(): Promise<HistoryItem[]> {
-  const { data } = await client.get<HistoryItem[]>('/history');
-  return data;
+function toHistoryItem(conversation: Awaited<ReturnType<typeof conversationsService.getConversation>>): HistoryItem {
+  return {
+    id: conversation.id,
+    meetingId: conversation.id,
+    title: conversation.title,
+    source: conversation.sourceLanguage,
+    target: conversation.targetLanguage,
+    entryCount: 0,
+    createdAt: conversation.createdAt,
+    favorite: conversation.favorite,
+  };
 }
 
-export async function getTranscript(
-  historyId: string
-): Promise<TranscriptEntry[]> {
-  const { data } = await client.get<TranscriptEntry[]>(
-    `/history/${historyId}/transcript`
-  );
-  return data;
+export async function getHistory(): Promise<HistoryItem[]> {
+  const conversations = await conversationsService.listConversations();
+  return conversations.map(toHistoryItem);
+}
+
+export async function getTranscript(historyId: string): Promise<TranscriptEntry[]> {
+  return messagesService.listMessages(historyId);
 }
 
 export async function deleteHistoryItem(historyId: string): Promise<void> {
-  await client.delete(`/history/${historyId}`);
+  await conversationsService.deleteConversation(historyId);
 }
 
-export async function clearHistory(): Promise<void> {
-  await client.delete('/history');
+export async function setFavorite(historyId: string, favorite: boolean): Promise<void> {
+  await conversationsService.setFavorite(historyId, favorite);
 }

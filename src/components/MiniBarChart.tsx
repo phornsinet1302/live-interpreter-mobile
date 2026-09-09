@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { DailyStat } from '@/types';
-import { colors, fonts, radius, spacing } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface MiniBarChartProps {
   data: DailyStat[];
@@ -9,6 +10,8 @@ interface MiniBarChartProps {
 }
 
 export function MiniBarChart({ data, height = 120 }: MiniBarChartProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const max = Math.max(1, ...data.map((d) => d.value));
 
   return (
@@ -29,24 +32,26 @@ export function MiniBarChart({ data, height = 120 }: MiniBarChartProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  column: { flex: 1, alignItems: 'center' },
-  value: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.textFaint, marginBottom: 4 },
-  track: {
-    width: '58%',
-    height: '100%',
-    justifyContent: 'flex-end',
-  },
-  bar: {
-    width: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: radius.sm,
-    minHeight: 4,
-  },
-  label: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.textMuted, marginTop: spacing.xs },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+    },
+    column: { flex: 1, alignItems: 'center' },
+    value: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.textFaint, marginBottom: 4 },
+    track: {
+      width: '58%',
+      height: '100%',
+      justifyContent: 'flex-end',
+    },
+    bar: {
+      width: '100%',
+      backgroundColor: colors.accent,
+      borderRadius: radius.sm,
+      minHeight: 4,
+    },
+    label: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.textMuted, marginTop: spacing.xs },
+  });
+}

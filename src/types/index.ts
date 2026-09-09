@@ -4,18 +4,7 @@ export interface User {
   email: string;
   preferredLanguage: string;
   avatarUrl?: string;
-}
-
-export interface AuthSession {
-  token: string;
-  refreshToken?: string;
-  user: User;
-  expiresAt: number;
-}
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
+  theme?: ThemePreference;
 }
 
 export type LanguageCode = string; // e.g. "en", "km", "es", "auto"
@@ -41,21 +30,31 @@ export interface TranslationResult {
   confidence?: number;
 }
 
-export interface Participant {
-  id: string;
-  name: string;
-  language: LanguageCode;
-  isHost: boolean;
+export interface WordLookupResult {
+  translatedText: string;
+  phonetic?: string;
+  examples: string[];
+  confidence?: number;
 }
 
-export interface Meeting {
+export type ConversationStatus = 'waiting' | 'active' | 'paused' | 'ended' | 'archived';
+
+export interface Speaker {
+  id: string;
+  label: string;
+  displayName?: string;
+  language?: LanguageCode;
+  isHost?: boolean;
+}
+
+export interface Conversation {
   id: string;
   title: string;
-  code: string;
-  hostId: string;
-  participants: Participant[];
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
+  status: ConversationStatus;
+  favorite: boolean;
   createdAt: string;
-  active: boolean;
 }
 
 export interface TranscriptEntry {
@@ -86,12 +85,7 @@ export interface ApiError {
   code?: string;
 }
 
-export type NotificationType =
-  | 'invitation'
-  | 'translation'
-  | 'export'
-  | 'reminder'
-  | 'system';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error';
 
 export interface NotificationItem {
   id: string;
@@ -102,50 +96,49 @@ export interface NotificationItem {
   read: boolean;
 }
 
+export interface Reminder {
+  id: string;
+  message: string;
+  remindAt: string;
+}
+
 export interface DailyStat {
   label: string;
   value: number;
 }
 
-export interface LanguageStat {
-  language: LanguageCode;
-  name: string;
+export interface LanguagePairStat {
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
   count: number;
   share: number;
 }
 
 export interface AnalyticsSnapshot {
+  totalConversations: number;
+  conversationsByStatus: Partial<Record<ConversationStatus, number>>;
+  totalMessages: number;
+  averageConfidence: number | null;
   daily: DailyStat[];
   weekly: DailyStat[];
   monthly: DailyStat[];
-  totalToday: number;
-  totalWeek: number;
-  totalMonth: number;
-  averageAccuracy: number;
-  aiSummaryUsage: number;
-  historyUsage: number;
-  languages: LanguageStat[];
+  conversationsSummarized: number;
+  endedConversations: number;
+  languagePairs: LanguagePairStat[];
 }
 
 export interface SpeakerSummary {
   speakerName: string;
   summary: string;
-  lineCount: number;
-}
-
-export interface SuggestedNextStep {
-  id: string;
-  label: string;
-  kind: 'question' | 'unfinished' | 'recommendation';
+  lineCount?: number;
 }
 
 export interface SessionInsights {
-  summary: string;
+  summary: string[];
   actionItems: string[];
-  keyPoints: string[];
   keywords: string[];
   speakerSummaries: SpeakerSummary[];
-  nextSteps: SuggestedNextStep[];
+  nextSteps: string[];
 }
 
 export type ThemePreference = 'light' | 'dark' | 'system';

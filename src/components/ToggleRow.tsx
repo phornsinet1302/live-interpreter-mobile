@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface ToggleRowProps {
   icon?: keyof typeof Ionicons.glyphMap;
@@ -13,6 +14,9 @@ interface ToggleRowProps {
 }
 
 export function ToggleRow({ icon, label, subtitle, value, onValueChange, disabled }: ToggleRowProps) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
   return (
     <View style={styles.row}>
       {icon ? (
@@ -35,22 +39,24 @@ export function ToggleRow({ icon, label, subtitle, value, onValueChange, disable
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.accentMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  text: { flex: 1, marginRight: spacing.sm },
-  label: { ...typography.body, fontFamily: fonts.sansMedium },
-  subtitle: { ...typography.caption, marginTop: 2 },
-});
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+    },
+    iconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.md,
+      backgroundColor: colors.accentMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+    },
+    text: { flex: 1, marginRight: spacing.sm },
+    label: { ...typography.body, fontFamily: fonts.sansMedium },
+    subtitle: { ...typography.caption, marginTop: 2 },
+  });
+}

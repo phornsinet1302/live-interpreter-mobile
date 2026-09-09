@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,7 +8,8 @@ import { Card } from '@/components/Card';
 import { ToggleRow } from '@/components/ToggleRow';
 import { SelectPillGroup } from '@/components/SelectPillGroup';
 import { useAppPreferences } from '@/hooks/useAppPreferences';
-import { colors, spacing, typography } from '@/utils/theme';
+import { spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'NoiseSettings'>;
@@ -16,9 +17,11 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'NoiseSettings'>;
 export function NoiseSettingsScreen() {
   const navigation = useNavigation<Nav>();
   const { preferences, setNoiseReductionEnabled, setNoiseEnvironment } = useAppPreferences();
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -67,7 +70,8 @@ export function NoiseSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -86,4 +90,5 @@ const styles = StyleSheet.create({
   cardSubtitle: { ...typography.caption, marginBottom: spacing.md },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: spacing.sm, gap: spacing.xs },
   noteText: { ...typography.caption, flex: 1 },
-});
+  });
+}

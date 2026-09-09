@@ -1,6 +1,7 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts } from '@/utils/theme';
+import React, { useMemo } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { fonts, ThemeColors } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 function initialsOf(name?: string | null): string {
   if (!name) return '?';
@@ -14,16 +15,20 @@ function initialsOf(name?: string | null): string {
 interface AvatarProps {
   name?: string | null;
   size?: number;
+  uri?: string | null;
 }
 
-export function Avatar({ name, size = 44 }: AvatarProps) {
+export function Avatar({ name, size = 44, uri }: AvatarProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const shape = { width: size, height: size, borderRadius: size / 2 };
+
+  if (uri) {
+    return <Image source={{ uri }} style={[styles.base, shape]} />;
+  }
+
   return (
-    <View
-      style={[
-        styles.base,
-        { width: size, height: size, borderRadius: size / 2 },
-      ]}
-    >
+    <View style={[styles.base, shape]}>
       <Text style={[styles.text, { fontSize: size * 0.38 }]}>
         {initialsOf(name)}
       </Text>
@@ -31,13 +36,15 @@ export function Avatar({ name, size = 44 }: AvatarProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: colors.accentMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  text: { color: colors.accent, fontFamily: fonts.sansBold },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    base: {
+      backgroundColor: colors.accentMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    text: { color: colors.accent, fontFamily: fonts.sansBold },
+  });
+}

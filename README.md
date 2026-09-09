@@ -9,7 +9,7 @@ meetings: capture speech, transcribe, translate, and review past sessions.
 - TypeScript (strict)
 - React Navigation (native stack + bottom tabs)
 - axios for the API layer
-- expo-av for audio capture
+- expo-audio for audio capture
 - AsyncStorage for session persistence
 
 ## Getting started

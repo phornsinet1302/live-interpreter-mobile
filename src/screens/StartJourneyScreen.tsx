@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -6,7 +6,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'StartJourney'>;
@@ -21,6 +22,8 @@ const LANGUAGE_CHIPS: { label: string; style: object }[] = [
 export function StartJourneyScreen() {
   const navigation = useNavigation<Nav>();
   const { completeOnboarding } = useOnboarding();
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   const continueAsGuest = () => {
     completeOnboarding();
@@ -84,7 +87,8 @@ export function StartJourneyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   back: {
     flexDirection: 'row',
@@ -146,4 +150,5 @@ const styles = StyleSheet.create({
   },
   actions: { width: '100%', gap: spacing.sm },
   button: { width: '100%' },
-});
+  });
+}

@@ -1,4 +1,4 @@
-import { Participant } from '@/types';
+import { Speaker } from '@/types';
 
 const DEMO_NAMES: { name: string; language: string }[] = [
   { name: 'Dara', language: 'km' },
@@ -6,12 +6,18 @@ const DEMO_NAMES: { name: string; language: string }[] = [
   { name: 'Kenji', language: 'ja' },
 ];
 
-export function mockParticipants(hostName: string, hostLanguage: string): Participant[] {
+export function mockParticipants(hostName: string, hostLanguage: string): Speaker[] {
   return [
-    { id: 'host', name: hostName, language: hostLanguage, isHost: true },
+    { id: 'host', label: hostName, displayName: hostName, language: hostLanguage, isHost: true },
     ...DEMO_NAMES.filter((p) => p.language !== hostLanguage)
       .slice(0, 2)
-      .map((p, i) => ({ id: `demo-${i}`, name: p.name, language: p.language, isHost: false })),
+      .map((p, i) => ({
+        id: `demo-${i}`,
+        label: p.name,
+        displayName: p.name,
+        language: p.language,
+        isHost: false,
+      })),
   ];
 }
 

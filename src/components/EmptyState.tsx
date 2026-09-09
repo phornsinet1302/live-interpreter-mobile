@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing, typography } from '@/utils/theme';
+import { radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface EmptyStateProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -10,6 +11,9 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ icon, title, subtitle }: EmptyStateProps) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
   return (
     <View style={styles.container}>
       <View style={styles.iconWrap}>
@@ -21,26 +25,28 @@ export function EmptyState({ icon, title, subtitle }: EmptyStateProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
-  },
-  iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.xl,
-    backgroundColor: colors.accentMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  title: { ...typography.h3, textAlign: 'center' },
-  subtitle: {
-    ...typography.bodyMuted,
-    textAlign: 'center',
-    marginTop: spacing.xs,
-  },
-});
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xxl,
+    },
+    iconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: radius.xl,
+      backgroundColor: colors.accentMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+    },
+    title: { ...typography.h3, textAlign: 'center' },
+    subtitle: {
+      ...typography.bodyMuted,
+      textAlign: 'center',
+      marginTop: spacing.xs,
+    },
+  });
+}

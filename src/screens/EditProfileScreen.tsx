@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -21,7 +21,8 @@ import { Avatar } from '@/components/Avatar';
 import { LanguagePickerModal } from '@/components/LanguagePickerModal';
 import { useAuth } from '@/hooks/useAuth';
 import { languageName } from '@/mocks/languages';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { ApiError } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
@@ -29,13 +30,16 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'EditProfile'>;
 
 export function EditProfileScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, uploadAvatar } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl);
+  const [avatarChanged, setAvatarChanged] = useState(false);
   const [language, setLanguage] = useState(user?.preferredLanguage ?? 'en');
   const [pickerVisible, setPickerVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   const pickAvatar = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -51,6 +55,7 @@ export function EditProfileScreen() {
     });
     if (!result.canceled && result.assets[0]) {
       setAvatarUrl(result.assets[0].uri);
+      setAvatarChanged(true);
     }
   };
 
@@ -58,7 +63,10 @@ export function EditProfileScreen() {
     setSaving(true);
     setError(null);
     try {
-      await updateProfile({ name: name.trim(), preferredLanguage: language, avatarUrl });
+      if (avatarChanged && avatarUrl) {
+        await uploadAvatar(avatarUrl);
+      }
+      await updateProfile({ name: name.trim(), preferredLanguage: language });
       navigation.goBack();
     } catch (e) {
       setError((e as ApiError).message);
@@ -127,7 +135,8 @@ export function EditProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   container: { flexGrow: 1, padding: spacing.lg, alignItems: 'center' },
@@ -178,4 +187,5 @@ const styles = StyleSheet.create({
   },
   errorText: { color: colors.danger, marginLeft: spacing.xs, flexShrink: 1 },
   submit: { marginTop: spacing.xs },
-});
+  });
+}

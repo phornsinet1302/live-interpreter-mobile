@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -12,8 +12,9 @@ import { GuestPrompt } from '@/components/GuestPrompt';
 import { SelectPillGroup } from '@/components/SelectPillGroup';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppPreferences } from '@/hooks/useAppPreferences';
+import { useTheme } from '@/hooks/useTheme';
 import { languageName } from '@/mocks/languages';
-import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
+import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -27,6 +28,8 @@ interface RowConfig {
 }
 
 function SectionCard({ title, rows }: { title: string; rows: RowConfig[] }) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -40,6 +43,8 @@ function SectionCard({ title, rows }: { title: string; rows: RowConfig[] }) {
 }
 
 function Row({ row, isLast }: { row: RowConfig; isLast: boolean }) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   return (
     <Pressable
       onPress={row.onPress}
@@ -63,6 +68,8 @@ export function SettingsScreen() {
   const navigation = useNavigation<Nav>();
   const { user, isAuthenticated, signOut } = useAuth();
   const { preferences, setTheme } = useAppPreferences();
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
   if (!isAuthenticated) {
     return (
@@ -97,7 +104,7 @@ export function SettingsScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.profile}>
-          <Avatar name={user?.name} size={64} />
+          <Avatar name={user?.name} uri={user?.avatarUrl} size={64} />
           <Text style={styles.name}>{user?.name ?? 'Guest'}</Text>
           <Text style={styles.email}>{user?.email ?? ''}</Text>
         </View>
@@ -199,41 +206,43 @@ export function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  guestSafe: { flex: 1, backgroundColor: colors.background },
-  guestTools: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
-  container: { flexGrow: 1, padding: spacing.lg },
-  profile: { alignItems: 'center', marginBottom: spacing.xl },
-  name: { ...typography.h2, marginTop: spacing.md },
-  email: { ...typography.bodyMuted, marginTop: spacing.xxs },
-  section: { marginBottom: spacing.lg },
-  sectionTitle: { ...typography.label, marginBottom: spacing.sm },
-  card: {},
-  appearanceCard: { marginBottom: spacing.sm },
-  appearanceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.accentMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  rowIconDanger: { backgroundColor: colors.dangerMuted },
-  rowLabel: { ...typography.body, flex: 1, fontFamily: fonts.sansMedium },
-  rowValue: { ...typography.caption, marginRight: spacing.sm },
-  spacer: { minHeight: spacing.sm },
-  version: {
-    ...typography.caption,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-});
+function createStyles(colors: ThemeColors, typography: ThemeTypography) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    guestSafe: { flex: 1, backgroundColor: colors.background },
+    guestTools: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+    container: { flexGrow: 1, padding: spacing.lg },
+    profile: { alignItems: 'center', marginBottom: spacing.xl },
+    name: { ...typography.h2, marginTop: spacing.md },
+    email: { ...typography.bodyMuted, marginTop: spacing.xxs },
+    section: { marginBottom: spacing.lg },
+    sectionTitle: { ...typography.label, marginBottom: spacing.sm },
+    card: {},
+    appearanceCard: { marginBottom: spacing.sm },
+    appearanceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.md,
+    },
+    rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
+    rowIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.md,
+      backgroundColor: colors.accentMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+    },
+    rowIconDanger: { backgroundColor: colors.dangerMuted },
+    rowLabel: { ...typography.body, flex: 1, fontFamily: fonts.sansMedium },
+    rowValue: { ...typography.caption, marginRight: spacing.sm },
+    spacer: { minHeight: spacing.sm },
+    version: {
+      ...typography.caption,
+      textAlign: 'center',
+      marginTop: spacing.lg,
+    },
+  });
+}
