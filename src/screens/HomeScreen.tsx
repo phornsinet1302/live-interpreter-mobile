@@ -1,18 +1,28 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 
 import { TranscriptBubble } from '@/components/TranscriptBubble';
 import { EmptyState } from '@/components/EmptyState';
+import { LanguagePickerModal } from '@/components/LanguagePickerModal';
 import { transcribeAndTranslate } from '@/services/translation';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppPreferences } from '@/hooks/useAppPreferences';
+import { languageName } from '@/mocks/languages';
 import { colors, fonts, radius, spacing, typography } from '@/utils/theme';
 import { TranscriptEntry } from '@/types';
+import { RootStackParamList } from '@/navigation/types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function HomeScreen() {
+  const navigation = useNavigation<Nav>();
   const { user } = useAuth();
+  const { preferences } = useAppPreferences();
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -20,6 +30,7 @@ export function HomeScreen() {
   const [targetLanguage, setTargetLanguage] = useState(
     user?.preferredLanguage ?? 'en'
   );
+  const [pickerFor, setPickerFor] = useState<'source' | 'target' | null>(null);
   const counter = useRef(0);
 
   const startRecording = useCallback(async () => {
@@ -87,20 +98,28 @@ export function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.logoBar}>
-        <Ionicons name="globe-outline" size={16} color={colors.accent} />
-        <Text style={styles.logoText}>Live Interpreter</Text>
+        <Pressable onPress={() => navigation.navigate('SessionSetup')} hitSlop={8}>
+          <Ionicons name="people-outline" size={20} color={colors.text} />
+        </Pressable>
+        <View style={styles.logoCenter}>
+          <Ionicons name="globe-outline" size={16} color={colors.accent} />
+          <Text style={styles.logoText}>Live Interpreter</Text>
+        </View>
+        <Pressable onPress={() => navigation.navigate('Notifications')} hitSlop={8}>
+          <Ionicons name="notifications-outline" size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.langSection}>
         <Ionicons name="leaf-outline" size={20} color={colors.accent} style={styles.leafLeft} />
         <Ionicons name="leaf-outline" size={16} color={colors.accent} style={styles.leafRight} />
         <View style={styles.langBar}>
-          <View style={styles.langPill}>
+          <Pressable style={styles.langPill} onPress={() => setPickerFor('source')}>
             <Text style={styles.langLabel}>Speaking</Text>
             <Text style={styles.langValue}>
-              {sourceLanguage === 'auto' ? 'Auto-detect' : sourceLanguage.toUpperCase()}
+              {sourceLanguage === 'auto' ? 'Auto-detect' : languageName(sourceLanguage)}
             </Text>
-          </View>
+          </Pressable>
           <Pressable
             onPress={swapLanguages}
             disabled={!canSwap}
@@ -112,10 +131,10 @@ export function HomeScreen() {
           >
             <Ionicons name="swap-horizontal" size={16} color={colors.white} />
           </Pressable>
-          <View style={styles.langPill}>
+          <Pressable style={styles.langPill} onPress={() => setPickerFor('target')}>
             <Text style={styles.langLabel}>Translating to</Text>
-            <Text style={styles.langValue}>{targetLanguage.toUpperCase()}</Text>
-          </View>
+            <Text style={styles.langValue}>{languageName(targetLanguage)}</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -161,7 +180,34 @@ export function HomeScreen() {
           />
         </Pressable>
         <Text style={styles.statusText}>{statusText}</Text>
+        {preferences.noiseReductionEnabled && (
+          <View style={styles.noiseBadge}>
+            <Ionicons name="volume-mute-outline" size={11} color={colors.accent} />
+            <Text style={styles.noiseBadgeText}>Noise reduction on</Text>
+          </View>
+        )}
+        {entries.length > 0 && (
+          <Pressable
+            onPress={() => navigation.navigate('Summary', { entries, title: 'This conversation' })}
+            style={styles.summaryLink}
+          >
+            <Ionicons name="sparkles-outline" size={13} color={colors.accent} />
+            <Text style={styles.summaryLinkText}>View AI summary & suggestions</Text>
+          </Pressable>
+        )}
       </View>
+
+      <LanguagePickerModal
+        visible={pickerFor !== null}
+        selected={pickerFor === 'source' ? sourceLanguage : targetLanguage}
+        allowAuto={pickerFor === 'source'}
+        title={pickerFor === 'source' ? 'Speaking language' : 'Translate to'}
+        onSelect={(code) => {
+          if (pickerFor === 'source') setSourceLanguage(code);
+          else setTargetLanguage(code);
+        }}
+        onClose={() => setPickerFor(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -170,12 +216,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   logoBar: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: spacing.xs,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  logoCenter: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   logoText: { fontFamily: fonts.serif, fontSize: 15, color: colors.text },
   langSection: {
     paddingHorizontal: spacing.lg,
@@ -227,6 +273,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   statusText: { ...typography.label, marginTop: spacing.md },
+  noiseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentMuted,
+  },
+  noiseBadgeText: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.accent, marginLeft: 4 },
+  summaryLink: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm },
+  summaryLinkText: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: colors.accent, marginLeft: 4 },
   micButton: {
     width: 72,
     height: 72,

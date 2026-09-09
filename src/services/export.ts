@@ -1,5 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { File, Paths } from 'expo-file-system';
 import { HistoryItem, TranscriptEntry } from '@/types';
 import { formatDate, formatTime } from '@/utils/format';
 
@@ -57,6 +58,62 @@ export async function exportTranscriptToPdf(
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
+      dialogTitle: item.title,
+    });
+  }
+}
+
+function sanitizeFilename(title: string): string {
+  return title.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'transcript';
+}
+
+function buildTranscriptText(item: HistoryItem, entries: TranscriptEntry[]): string {
+  const header = `${item.title}\n${item.source.toUpperCase()} -> ${item.target.toUpperCase()} - ${formatDate(item.createdAt)}\n${'='.repeat(40)}\n\n`;
+  const body = entries
+    .map(
+      (entry) =>
+        `${entry.speakerName} - ${formatTime(entry.timestamp)}\n${entry.original}\n${entry.translated}\n`
+    )
+    .join('\n');
+  return header + (body || 'No transcript entries.');
+}
+
+export async function exportTranscriptToTxt(
+  item: HistoryItem,
+  entries: TranscriptEntry[]
+): Promise<void> {
+  const text = buildTranscriptText(item, entries);
+  const file = new File(Paths.cache, `${sanitizeFilename(item.title)}.txt`);
+  if (file.exists) file.delete();
+  file.create();
+  file.write(text);
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'text/plain',
+      dialogTitle: item.title,
+    });
+  }
+}
+
+/**
+ * Word can open an HTML document saved with a .doc extension, so this reuses
+ * the PDF's HTML build to produce an editable "Word" export without a real
+ * DOCX (OOXML) writer.
+ */
+export async function exportTranscriptToWord(
+  item: HistoryItem,
+  entries: TranscriptEntry[]
+): Promise<void> {
+  const html = buildTranscriptHtml(item, entries);
+  const file = new File(Paths.cache, `${sanitizeFilename(item.title)}.doc`);
+  if (file.exists) file.delete();
+  file.create();
+  file.write(html);
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'application/msword',
       dialogTitle: item.title,
     });
   }

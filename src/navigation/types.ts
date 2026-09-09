@@ -1,4 +1,5 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
+import { HistoryItem, TranscriptEntry } from '@/types';
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -6,6 +7,18 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList>;
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
+  EditProfile: undefined;
+  DeleteAccount: undefined;
+  SessionSetup: undefined;
+  Session: { meetingId?: string } | undefined;
+  SubtitleDisplay: { meetingId?: string } | undefined;
+  Summary: { entries?: TranscriptEntry[]; historyId?: string; title?: string } | undefined;
+  HistoryDetail: { item: HistoryItem };
+  UniversalTranslate: undefined;
+  Analytics: undefined;
+  Notifications: undefined;
+  NoiseSettings: undefined;
 };
 
 export type MainTabParamList = {

@@ -17,6 +17,18 @@ import { RegisterScreen } from '@/screens/RegisterScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
+import { ForgotPasswordScreen } from '@/screens/ForgotPasswordScreen';
+import { EditProfileScreen } from '@/screens/EditProfileScreen';
+import { DeleteAccountScreen } from '@/screens/DeleteAccountScreen';
+import { SessionSetupScreen } from '@/screens/SessionSetupScreen';
+import { SessionScreen } from '@/screens/SessionScreen';
+import { SubtitleDisplayScreen } from '@/screens/SubtitleDisplayScreen';
+import { SummaryScreen } from '@/screens/SummaryScreen';
+import { HistoryDetailScreen } from '@/screens/HistoryDetailScreen';
+import { UniversalTranslateScreen } from '@/screens/UniversalTranslateScreen';
+import { AnalyticsScreen } from '@/screens/AnalyticsScreen';
+import { NotificationsScreen } from '@/screens/NotificationsScreen';
+import { NoiseSettingsScreen } from '@/screens/NoiseSettingsScreen';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<MainTabParamList>();
@@ -128,6 +140,66 @@ export function RootNavigator() {
           name="Register"
           component={RegisterScreen}
           options={authScreenOptions}
+        />
+        <RootStack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+          options={authScreenOptions}
+        />
+        <RootStack.Screen
+          name="EditProfile"
+          component={EditProfileScreen}
+          options={{ title: 'Edit profile' }}
+        />
+        <RootStack.Screen
+          name="DeleteAccount"
+          component={DeleteAccountScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="SessionSetup"
+          component={SessionSetupScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="Session"
+          component={SessionScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="SubtitleDisplay"
+          component={SubtitleDisplayScreen}
+          options={{ headerShown: false, presentation: 'fullScreenModal' }}
+        />
+        <RootStack.Screen
+          name="Summary"
+          component={SummaryScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="HistoryDetail"
+          component={HistoryDetailScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="UniversalTranslate"
+          component={UniversalTranslateScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="Analytics"
+          component={AnalyticsScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="Notifications"
+          component={NotificationsScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="NoiseSettings"
+          component={NoiseSettingsScreen}
+          options={{ headerShown: false }}
         />
       </RootStack.Navigator>
     </NavigationContainer>

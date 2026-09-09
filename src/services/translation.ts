@@ -45,3 +45,27 @@ export async function transcribeAndTranslate(
   );
   return data;
 }
+
+/**
+ * Send a captured photo (screen text / on-screen OCR) for text recognition
+ * + translation. Requires a backend with OCR support.
+ */
+export async function translateImage(
+  imageUri: string,
+  target: string
+): Promise<TranslationResult> {
+  const form = new FormData();
+  form.append('image', {
+    uri: imageUri,
+    name: 'capture.jpg',
+    type: 'image/jpeg',
+  } as unknown as Blob);
+  form.append('target', target);
+
+  const { data } = await client.post<TranslationResult>(
+    '/translate/image',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return data;
+}

@@ -27,6 +27,28 @@ export async function getCurrentUser(): Promise<User> {
   return data;
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  await client.post('/auth/forgot-password', { email });
+}
+
+export async function updateProfile(
+  payload: Partial<Pick<User, 'name' | 'preferredLanguage' | 'avatarUrl'>>
+): Promise<User> {
+  const { data } = await client.patch<User>('/auth/me', payload);
+  return data;
+}
+
+export async function deleteAccount(): Promise<void> {
+  await client.delete('/auth/me');
+  await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, SESSION_KEY]);
+}
+
+export async function loginWithGoogle(idToken: string): Promise<AuthSession> {
+  const { data } = await client.post<AuthSession>('/auth/google', { idToken });
+  await persistSession(data);
+  return data;
+}
+
 export async function restoreSession(): Promise<AuthSession | null> {
   const raw = await AsyncStorage.getItem(SESSION_KEY);
   if (!raw) return null;

@@ -16,6 +16,7 @@ import {
 } from '@expo-google-fonts/inter';
 import { AuthProvider } from '@/context/AuthContext';
 import { OnboardingProvider } from '@/context/OnboardingContext';
+import { AppPreferencesProvider } from '@/context/AppPreferencesContext';
 import { RootNavigator } from '@/navigation/RootNavigator';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -45,8 +46,10 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <OnboardingProvider>
-          <StatusBar style="dark" />
-          <RootNavigator />
+          <AppPreferencesProvider>
+            <StatusBar style="dark" />
+            <RootNavigator />
+          </AppPreferencesProvider>
         </OnboardingProvider>
       </AuthProvider>
     </SafeAreaProvider>

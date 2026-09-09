@@ -14,8 +14,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { useAuth } from '@/hooks/useAuth';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { colors, fonts, spacing, typography } from '@/utils/theme';
 import { ApiError } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
@@ -30,6 +32,12 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const onSignedIn = () => {
+    completeOnboarding();
+    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+  };
+  const { promptSignIn } = useGoogleAuth(onSignedIn);
 
   const onSubmit = async () => {
     setLoading(true);
@@ -98,6 +106,14 @@ export function LoginScreen() {
               onChangeText={setPassword}
             />
 
+            <Pressable
+              onPress={() => navigation.navigate('ForgotPassword')}
+              hitSlop={8}
+              style={styles.forgotLink}
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+
             {error && (
               <View style={styles.errorBanner}>
                 <Ionicons name="alert-circle" size={16} color={colors.danger} />
@@ -112,6 +128,14 @@ export function LoginScreen() {
               disabled={!email.trim() || !password}
               style={styles.submit}
             />
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <GoogleSignInButton onPress={promptSignIn} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -154,4 +178,18 @@ const styles = StyleSheet.create({
   },
   errorText: { color: colors.danger, marginLeft: spacing.xs, flexShrink: 1 },
   submit: { marginTop: spacing.xs },
+  forgotLink: { alignSelf: 'flex-end', marginBottom: spacing.md, marginTop: -spacing.xs },
+  forgotText: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.accent },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
+    color: colors.textFaint,
+    marginHorizontal: spacing.sm,
+  },
 });
