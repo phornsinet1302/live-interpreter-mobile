@@ -16,6 +16,7 @@ import { useSignIn } from '@clerk/expo';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { useRedirectIfAuthenticated } from '@/hooks/useRedirectIfAuthenticated';
 import { clerkErrorMessage } from '@/utils/clerkError';
 import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -25,6 +26,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'ForgotPassword'>;
 
 export function ForgotPasswordScreen() {
   const navigation = useNavigation<Nav>();
+  useRedirectIfAuthenticated();
   const { signIn } = useSignIn();
   const { completeOnboarding } = useOnboarding();
   const [email, setEmail] = useState('');
@@ -77,7 +79,11 @@ export function ForgotPasswordScreen() {
         return;
       }
       if (signIn.status === 'complete') {
-        await signIn.finalize();
+        const { error: finalizeError } = await signIn.finalize();
+        if (finalizeError) {
+          setError(clerkErrorMessage(finalizeError, 'Could not finish signing you in — please try again.'));
+          return;
+        }
         setStep('done');
       } else {
         setError('That code didn’t complete the reset — please try again.');

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import { NavigationContainer, Theme as NavTheme } from '@react-navigation/native';
+import { NavigationContainer, Theme as NavTheme, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { ThemeColors, fonts } from '@/utils/theme';
 import { RootStackParamList, MainTabParamList } from './types';
 
-import { WelcomeScreen } from '@/screens/WelcomeScreen';
+import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { StartJourneyScreen } from '@/screens/StartJourneyScreen';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { RegisterScreen } from '@/screens/RegisterScreen';
@@ -21,9 +21,8 @@ import { SettingsScreen } from '@/screens/SettingsScreen';
 import { ForgotPasswordScreen } from '@/screens/ForgotPasswordScreen';
 import { EditProfileScreen } from '@/screens/EditProfileScreen';
 import { DeleteAccountScreen } from '@/screens/DeleteAccountScreen';
-import { SessionSetupScreen } from '@/screens/SessionSetupScreen';
-import { SessionScreen } from '@/screens/SessionScreen';
-import { SubtitleDisplayScreen } from '@/screens/SubtitleDisplayScreen';
+import { NewSessionScreen } from '@/screens/NewSessionScreen';
+import { SessionLiveScreen } from '@/screens/SessionLiveScreen';
 import { SummaryScreen } from '@/screens/SummaryScreen';
 import { HistoryDetailScreen } from '@/screens/HistoryDetailScreen';
 import { UniversalTranslateScreen } from '@/screens/UniversalTranslateScreen';
@@ -102,9 +101,49 @@ function MainTabs() {
 }
 
 export function RootNavigator() {
-  const { isLoading: authLoading } = useAuth();
-  const { hasOnboarded, isLoading: onboardingLoading } = useOnboarding();
+  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { isLoading: onboardingLoading, completeOnboarding } = useOnboarding();
   const { colors, scheme } = useTheme();
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
+
+  // Single, authoritative place that reacts to actually becoming signed in —
+  // rather than each auth screen navigating right after its own local Clerk
+  // call succeeds. Screens' calls and the real global auth state can
+  // disagree (that's exactly what caused "signed up successfully but
+  // Settings still showed guest" earlier), so this is the one thing that
+  // gets to decide "we're in" and send the user to Main.
+  //
+  // Skipped while ForgotPasswordScreen has focus: its own reset flow calls
+  // signIn.finalize() too (so isAuthenticated flips true mid-flow, same as
+  // Login/Register), but it intentionally shows its own "Password updated"
+  // confirmation step first — an automatic redirect here would yank the
+  // user past that before they see it. That screen navigates itself once
+  // its own Continue button is tapped.
+  //
+  // authReadyRef guards against a false transition on cold start: while
+  // Clerk is still resolving, isAuthenticated reads false, so a returning
+  // logged-in user's very first "loading finished, now true" render looked
+  // identical to a fresh sign-in and yanked them straight to Main before
+  // they ever saw the onboarding trailer. The first render after loading
+  // finishes just records the baseline instead of reacting to it — only
+  // a transition that happens *after* that baseline is a real sign-in.
+  const authReadyRef = useRef(false);
+  const wasAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!authReadyRef.current) {
+      authReadyRef.current = true;
+      wasAuthenticatedRef.current = isAuthenticated;
+      return;
+    }
+    const wasAuthenticated = wasAuthenticatedRef.current;
+    wasAuthenticatedRef.current = isAuthenticated;
+    if (!isAuthenticated || wasAuthenticated) return;
+    if (!navigationRef.isReady()) return;
+    if (navigationRef.getCurrentRoute()?.name === 'ForgotPassword') return;
+    completeOnboarding();
+    navigationRef.reset({ index: 0, routes: [{ name: 'Main' }] });
+  }, [isAuthenticated, authLoading, completeOnboarding, navigationRef]);
 
   if (authLoading || onboardingLoading) {
     return (
@@ -127,25 +166,21 @@ export function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       <RootStack.Navigator
         screenOptions={createScreenOptions(colors)}
-        initialRouteName={hasOnboarded ? 'Main' : 'Welcome'}
+        initialRouteName="Welcome"
       >
-        {!hasOnboarded && (
-          <>
-            <RootStack.Screen
-              name="Welcome"
-              component={WelcomeScreen}
-              options={{ headerShown: false }}
-            />
-            <RootStack.Screen
-              name="StartJourney"
-              component={StartJourneyScreen}
-              options={{ headerShown: false }}
-            />
-          </>
-        )}
+        <RootStack.Screen
+          name="Welcome"
+          component={OnboardingScreen}
+          options={{ headerShown: false }}
+        />
+        <RootStack.Screen
+          name="StartJourney"
+          component={StartJourneyScreen}
+          options={{ headerShown: false }}
+        />
         <RootStack.Screen
           name="Main"
           component={MainTabs}
@@ -177,19 +212,14 @@ export function RootNavigator() {
           options={{ headerShown: false }}
         />
         <RootStack.Screen
-          name="SessionSetup"
-          component={SessionSetupScreen}
-          options={{ headerShown: false }}
+          name="NewSession"
+          component={NewSessionScreen}
+          options={{ headerShown: false, animation: 'slide_from_left', gestureEnabled: true }}
         />
         <RootStack.Screen
-          name="Session"
-          component={SessionScreen}
-          options={{ headerShown: false }}
-        />
-        <RootStack.Screen
-          name="SubtitleDisplay"
-          component={SubtitleDisplayScreen}
-          options={{ headerShown: false, presentation: 'fullScreenModal' }}
+          name="SessionLive"
+          component={SessionLiveScreen}
+          options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }}
         />
         <RootStack.Screen
           name="Summary"

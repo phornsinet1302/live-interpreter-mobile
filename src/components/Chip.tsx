@@ -24,15 +24,9 @@ export function Chip({ label, tone = 'muted', style }: ChipProps) {
 const styles = StyleSheet.create({
   base: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs + 3,
+    paddingVertical: spacing.xxs + 2,
     borderRadius: radius.pill,
     alignSelf: 'flex-start',
   },
-  text: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.3,
-    includeFontPadding: false,
-  },
+  text: { fontFamily: fonts.sansSemiBold, fontSize: 12, letterSpacing: 0.3 },
 });

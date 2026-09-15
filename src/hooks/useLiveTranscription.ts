@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Platform } from 'react-native';
 import {
-  RecordingPresets,
+  AudioQuality,
+  IOSOutputFormat,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
+  type RecordingOptions,
 } from 'expo-audio';
 import { transcribeAndTranslate } from '@/services/translation';
 import { LanguageCode, TranslationResult } from '@/types';
@@ -12,7 +15,7 @@ import { LanguageCode, TranslationResult } from '@/types';
 // Below this level (dB) the mic is treated as picking up silence, not speech.
 const SILENCE_THRESHOLD_DB = -40;
 // How long silence must hold before a segment is cut and submitted.
-const SILENCE_DURATION_MS = 700;
+const SILENCE_DURATION_MS = 550;
 // Minimum length before a segment is worth submitting (skips accidental taps).
 const MIN_SEGMENT_MS = 500;
 // Hard cap so continuous speech with no pauses still submits periodically.
@@ -20,10 +23,44 @@ const MAX_SEGMENT_MS = 10000;
 // How often the recorder reports metering while listening.
 const METER_INTERVAL_MS = 120;
 
+// A single voice, single mic input never needs RecordingPresets.HIGH_QUALITY's
+// 44.1kHz stereo/128kbps (music-grade) — that just makes every segment's
+// base64 upload bigger and slower to transcribe for no accuracy benefit on
+// speech. Mono/16kHz/32kbps cuts the file size roughly 4x while staying well
+// above what Gemini's transcription needs for clean speech. Stays on the same
+// .m4a/AAC container as HIGH_QUALITY (unlike RecordingPresets.LOW_QUALITY,
+// which switches Android to .3gp/amr_nb) since the client hardcodes
+// `mimeType: 'audio/m4a'` when uploading.
+const SPEECH_RECORDING_OPTIONS: RecordingOptions = {
+  extension: '.m4a',
+  sampleRate: 16000,
+  numberOfChannels: 1,
+  bitRate: 32000,
+  android: { outputFormat: 'mpeg4', audioEncoder: 'aac' },
+  ios: {
+    outputFormat: IOSOutputFormat.MPEG4AAC,
+    audioQuality: AudioQuality.MEDIUM,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: { mimeType: 'audio/webm', bitsPerSecond: 32000 },
+};
+
 interface UseLiveTranscriptionOptions {
   sourceLanguage: LanguageCode;
   targetLanguage: LanguageCode;
-  onSegment: (result: TranslationResult, startedAt: number) => void;
+  // audioUri points at the recorded segment's still-on-disk file — present
+  // for callers (Group Session's speaker identification) that need the raw
+  // audio, not just the transcribed text. Home tab ignores it.
+  onSegment: (result: TranslationResult, startedAt: number, audioUri: string) => void;
+  // Routes recording through Android's VOICE_COMMUNICATION audio source,
+  // which engages the device's built-in acoustic echo cancellation, noise
+  // suppression, and automatic gain control (real OS-level DSP, when the
+  // hardware supports it — most phones since roughly the last decade do).
+  // No iOS equivalent is exposed by expo-audio's plain AVAudioRecorder-based
+  // API — enabling this on iOS is a no-op there, not broken.
+  noiseReductionEnabled?: boolean;
 }
 
 /**
@@ -48,8 +85,19 @@ export function useLiveTranscription({
   sourceLanguage,
   targetLanguage,
   onSegment,
+  noiseReductionEnabled = false,
 }: UseLiveTranscriptionOptions) {
-  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  const recordingOptions = useMemo(() => {
+    if (!noiseReductionEnabled || Platform.OS !== 'android') {
+      return { ...SPEECH_RECORDING_OPTIONS, isMeteringEnabled: true };
+    }
+    return {
+      ...SPEECH_RECORDING_OPTIONS,
+      isMeteringEnabled: true,
+      android: { ...SPEECH_RECORDING_OPTIONS.android, audioSource: 'voice_communication' as const },
+    };
+  }, [noiseReductionEnabled]);
+  const recorder = useAudioRecorder(recordingOptions);
   const recorderState = useAudioRecorderState(recorder, METER_INTERVAL_MS);
   const [listening, setListening] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -87,7 +135,7 @@ export function useLiveTranscription({
           const { sourceLanguage: src, targetLanguage: tgt } = languagesRef.current;
           transcribeAndTranslate(uri, src, tgt)
             .then((result) => {
-              if (result.sourceText.trim()) onSegmentRef.current(result, startedAt);
+              if (result.sourceText.trim()) onSegmentRef.current(result, startedAt, uri);
             })
             .catch(() => {})
             .finally(() => setPendingCount((c) => Math.max(0, c - 1)));
@@ -111,7 +159,13 @@ export function useLiveTranscription({
   const start = useCallback(async () => {
     try {
       const permission = await requestRecordingPermissionsAsync();
-      if (!permission.granted) return false;
+      if (!permission.granted) {
+        Alert.alert(
+          'Microphone access needed',
+          'Live Interpreter needs microphone access to hear and translate your speech. Enable it for this app in your device Settings, then try again.'
+        );
+        return false;
+      }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       listeningRef.current = true;
       setListening(true);
@@ -120,6 +174,7 @@ export function useLiveTranscription({
     } catch {
       listeningRef.current = false;
       setListening(false);
+      Alert.alert('Could not start listening', "Something went wrong starting the microphone. Please try again.");
       return false;
     }
   }, [beginSegment]);

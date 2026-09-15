@@ -16,8 +16,10 @@ import { useSignUp, useSSO } from '@clerk/expo';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
-import { useOnboarding } from '@/hooks/useOnboarding';
-import { clerkErrorMessage } from '@/utils/clerkError';
+import { useAuth } from '@/hooks/useAuth';
+import { useRedirectIfAuthenticated } from '@/hooks/useRedirectIfAuthenticated';
+import { clerkErrorMessage, isAlreadySignedInError } from '@/utils/clerkError';
+import { withTimeout } from '@/utils/withTimeout';
 import { fonts, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
@@ -26,9 +28,10 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
 export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
+  useRedirectIfAuthenticated();
   const { signUp } = useSignUp();
   const { startSSOFlow } = useSSO();
-  const { completeOnboarding } = useOnboarding();
+  const { signOut } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,24 +45,38 @@ export function RegisterScreen() {
 
   const canSubmit = name.trim() && email.trim() && password.length >= 6;
 
-  const onSignedIn = () => {
-    completeOnboarding();
-    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+  // No onSuccess navigation here on purpose — RootNavigator's own watcher on
+  // isAuthenticated is the single, authoritative place that reacts to
+  // actually becoming signed in and sends the user to Main. This screen's
+  // job stops at getting Clerk to a signed-in state.
+
+  // See LoginScreen's identical helper — Clerk sometimes rejects a new
+  // sign-up/sign-in because the device still holds a session its API
+  // considers valid even though this app's own state never picked it up.
+  // Clearing it here is the only way out; the user just needs to retry once.
+  const reportAuthError = async (message: string) => {
+    if (isAlreadySignedInError(message)) {
+      await signOut().catch(() => {});
+      setError('This device had a stuck sign-in — it’s been cleared. Please try again.');
+      return;
+    }
+    setError(message);
   };
 
   const promptGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError(null);
     try {
-      const { createdSessionId, setActive: setActiveSSO } = await startSSOFlow({
-        strategy: 'oauth_google',
-      });
+      const { createdSessionId, setActive: setActiveSSO } = await withTimeout(
+        startSSOFlow({ strategy: 'oauth_google' }),
+        20000,
+        'Google sign-in timed out. Check your internet connection and try again.'
+      );
       if (createdSessionId && setActiveSSO) {
         await setActiveSSO({ session: createdSessionId });
-        onSignedIn();
       }
     } catch (e) {
-      setError(clerkErrorMessage(e, 'Google sign-in failed.'));
+      await reportAuthError(clerkErrorMessage(e, 'Google sign-in failed.'));
     } finally {
       setGoogleLoading(false);
     }
@@ -69,23 +86,27 @@ export function RegisterScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { error: signUpError } = await signUp.password({
-        emailAddress: email.trim(),
-        password,
-        firstName: name.trim(),
-      });
+      const { error: signUpError } = await withTimeout(
+        signUp.password({ emailAddress: email.trim(), password, firstName: name.trim() }),
+        15000,
+        'This is taking too long — check your internet connection and try again.'
+      );
       if (signUpError) {
-        setError(clerkErrorMessage(signUpError, 'Could not create your account.'));
+        await reportAuthError(clerkErrorMessage(signUpError, 'Could not create your account.'));
         return;
       }
-      const { error: codeError } = await signUp.verifications.sendEmailCode();
+      const { error: codeError } = await withTimeout(
+        signUp.verifications.sendEmailCode(),
+        15000,
+        'This is taking too long — check your internet connection and try again.'
+      );
       if (codeError) {
         setError(clerkErrorMessage(codeError, 'Could not send a verification code.'));
         return;
       }
       setPendingVerification(true);
     } catch (e) {
-      setError(clerkErrorMessage(e, 'Could not create your account.'));
+      await reportAuthError(clerkErrorMessage(e, 'Could not create your account.'));
     } finally {
       setLoading(false);
     }
@@ -95,19 +116,27 @@ export function RegisterScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { error: verifyError } = await signUp.verifications.verifyEmailCode({
-        code: code.trim(),
-      });
+      const { error: verifyError } = await withTimeout(
+        signUp.verifications.verifyEmailCode({ code: code.trim() }),
+        15000,
+        'This is taking too long — check your internet connection and try again.'
+      );
       if (verifyError) {
         setError(clerkErrorMessage(verifyError, 'Invalid or expired code.'));
       } else if (signUp.status === 'complete') {
-        await signUp.finalize();
-        onSignedIn();
+        const { error: finalizeError } = await withTimeout(
+          signUp.finalize(),
+          15000,
+          'This is taking too long — check your internet connection and try again.'
+        );
+        if (finalizeError) {
+          await reportAuthError(clerkErrorMessage(finalizeError, 'Could not finish signing you in — please try again.'));
+        }
       } else {
         setError('That code didn’t complete sign-up — please try again.');
       }
     } catch (e) {
-      setError(clerkErrorMessage(e, 'Invalid or expired code.'));
+      await reportAuthError(clerkErrorMessage(e, 'Invalid or expired code.'));
     } finally {
       setLoading(false);
     }

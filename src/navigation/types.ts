@@ -10,9 +10,8 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   EditProfile: undefined;
   DeleteAccount: undefined;
-  SessionSetup: undefined;
-  Session: { meetingId?: string } | undefined;
-  SubtitleDisplay: { meetingId?: string } | undefined;
+  NewSession: undefined;
+  SessionLive: { title: string };
   Summary: { entries?: TranscriptEntry[]; historyId?: string; title?: string } | undefined;
   HistoryDetail: { item: HistoryItem };
   UniversalTranslate: undefined;

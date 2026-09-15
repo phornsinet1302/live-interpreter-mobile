@@ -60,9 +60,11 @@ export function NoiseSettingsScreen() {
         <View style={styles.noteRow}>
           <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
           <Text style={styles.noteText}>
-            This controls the app's recording pipeline preferences. Real-time DSP noise
-            suppression and echo cancellation need a native audio engine (e.g. WebRTC's built-in
-            AEC/NS) wired into a future dev-client build.
+            On Android, this routes recording through the device's built-in voice-call audio
+            path, which engages real noise suppression, echo cancellation, and gain control at
+            the OS level on phones that support it. iOS doesn't expose an equivalent through this
+            app's recording engine yet, so this stays a preference there for now rather than
+            actually changing the audio.
           </Text>
         </View>
       </ScrollView>

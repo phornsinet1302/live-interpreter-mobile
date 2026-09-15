@@ -16,8 +16,10 @@ import { useSignIn, useSSO } from '@clerk/expo';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
-import { useOnboarding } from '@/hooks/useOnboarding';
-import { clerkErrorMessage } from '@/utils/clerkError';
+import { useAuth } from '@/hooks/useAuth';
+import { useRedirectIfAuthenticated } from '@/hooks/useRedirectIfAuthenticated';
+import { clerkErrorMessage, isAlreadySignedInError, isInvalidCredentialsError } from '@/utils/clerkError';
+import { withTimeout } from '@/utils/withTimeout';
 import { fonts, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
@@ -26,9 +28,10 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const navigation = useNavigation<Nav>();
+  useRedirectIfAuthenticated();
   const { signIn } = useSignIn();
   const { startSSOFlow } = useSSO();
-  const { completeOnboarding } = useOnboarding();
+  const { signOut } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,47 +40,82 @@ export function LoginScreen() {
   const { colors, typography } = useTheme();
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
-  const onSignedIn = () => {
-    completeOnboarding();
-    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+  // No onSuccess navigation here on purpose — RootNavigator's own watcher on
+  // isAuthenticated is the single, authoritative place that reacts to
+  // actually becoming signed in and sends the user to Main. This screen's
+  // job stops at getting Clerk to a signed-in state.
+
+  // Clerk sometimes rejects a new sign-in because the device still holds a
+  // session its API considers valid, even though this app's own state
+  // (useAuth().isAuthenticated) never picked it up — a stuck local session,
+  // not a real "you're already logged in, nothing to do" case (the
+  // useRedirectIfAuthenticated guard above already handles that one).
+  // Clearing it here is the only way out; the user just needs to retry once.
+  const reportAuthError = async (err: unknown, fallback: string) => {
+    if (isInvalidCredentialsError(err)) {
+      setError('Incorrect email or password. Please try again.');
+      return;
+    }
+    const message = clerkErrorMessage(err, fallback);
+    if (isAlreadySignedInError(message)) {
+      await signOut().catch(() => {});
+      setError('This device had a stuck sign-in — it’s been cleared. Please try again.');
+      return;
+    }
+    setError(message);
   };
 
   const promptGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError(null);
     try {
-      const { createdSessionId, setActive: setActiveSSO } = await startSSOFlow({
-        strategy: 'oauth_google',
-      });
+      const { createdSessionId, setActive: setActiveSSO } = await withTimeout(
+        startSSOFlow({ strategy: 'oauth_google' }),
+        20000,
+        'Google sign-in timed out. Check your internet connection and try again.'
+      );
       if (createdSessionId && setActiveSSO) {
         await setActiveSSO({ session: createdSessionId });
-        onSignedIn();
       }
     } catch (e) {
-      setError(clerkErrorMessage(e, 'Google sign-in failed.'));
+      await reportAuthError(e, 'Google sign-in failed.');
     } finally {
       setGoogleLoading(false);
     }
   };
 
   const onSubmit = async () => {
+    console.log('[Login] submit pressed', { hasSignIn: !!signIn, email: email.trim() });
     setLoading(true);
     setError(null);
     try {
-      const { error: signInError } = await signIn.password({
-        identifier: email.trim(),
-        password,
-      });
+      console.log('[Login] calling signIn.password()');
+      const { error: signInError } = await withTimeout(
+        signIn.password({ identifier: email.trim(), password }),
+        15000,
+        'This is taking too long — check your internet connection and try again.'
+      );
+      console.log('[Login] password() resolved', { signInError, status: signIn.status });
       if (signInError) {
-        setError(clerkErrorMessage(signInError, 'Could not sign in.'));
+        await reportAuthError(signInError, 'Could not sign in.');
       } else if (signIn.status === 'complete') {
-        await signIn.finalize();
-        onSignedIn();
+        console.log('[Login] calling signIn.finalize()');
+        const { error: finalizeError } = await withTimeout(
+          signIn.finalize(),
+          15000,
+          'This is taking too long — check your internet connection and try again.'
+        );
+        console.log('[Login] finalize() resolved', { finalizeError });
+        if (finalizeError) {
+          await reportAuthError(finalizeError, 'Could not finish signing you in — please try again.');
+        }
       } else {
+        console.log('[Login] status not complete', signIn.status);
         setError('Additional verification is required for this account.');
       }
     } catch (e) {
-      setError(clerkErrorMessage(e, 'Could not sign in.'));
+      console.log('[Login] threw', e);
+      await reportAuthError(e, 'Could not sign in.');
     } finally {
       setLoading(false);
     }

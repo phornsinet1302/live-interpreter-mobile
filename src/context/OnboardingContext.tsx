@@ -13,6 +13,7 @@ interface OnboardingContextValue {
   hasOnboarded: boolean;
   isLoading: boolean;
   completeOnboarding: () => void;
+  resetOnboarding: () => void;
 }
 
 export const OnboardingContext = createContext<OnboardingContextValue | undefined>(
@@ -41,9 +42,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     AsyncStorage.setItem(ONBOARDED_KEY, 'true').catch(() => {});
   }, []);
 
+  const resetOnboarding = useCallback(() => {
+    setHasOnboarded(false);
+    AsyncStorage.removeItem(ONBOARDED_KEY).catch(() => {});
+  }, []);
+
   const value = useMemo<OnboardingContextValue>(
-    () => ({ hasOnboarded, isLoading, completeOnboarding }),
-    [hasOnboarded, isLoading, completeOnboarding]
+    () => ({ hasOnboarded, isLoading, completeOnboarding, resetOnboarding }),
+    [hasOnboarded, isLoading, completeOnboarding, resetOnboarding]
   );
 
   return (

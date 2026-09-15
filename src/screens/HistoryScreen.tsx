@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   ScrollView,
@@ -19,6 +18,7 @@ import { Chip } from '@/components/Chip';
 import { Input } from '@/components/Input';
 import { EmptyState } from '@/components/EmptyState';
 import { GuestPrompt } from '@/components/GuestPrompt';
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { useAuth } from '@/hooks/useAuth';
 import { getHistory, deleteHistoryItem, setFavorite } from '@/services/history';
 import { radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
@@ -37,6 +37,8 @@ export function HistoryScreen() {
   const [query, setQuery] = useState('');
   const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<HistoryItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { colors, typography } = useTheme();
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
@@ -94,22 +96,23 @@ export function HistoryScreen() {
   }, []);
 
   const onDelete = useCallback((item: HistoryItem) => {
-    Alert.alert('Delete session', `Remove "${item.title}" from your history?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          setItems((prev) => prev.filter((i) => i.id !== item.id));
-          try {
-            await deleteHistoryItem(item.id);
-          } catch {
-            // No backend yet — keep it removed locally.
-          }
-        },
-      },
-    ]);
+    setPendingDelete(item);
   }, []);
+
+  const onConfirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    const item = pendingDelete;
+    setDeleting(true);
+    try {
+      await deleteHistoryItem(item.id);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setPendingDelete(null);
+    } catch {
+      // Leave the sheet open with the item intact rather than pretending it deleted.
+    } finally {
+      setDeleting(false);
+    }
+  }, [pendingDelete]);
 
   if (!isAuthenticated) {
     return (
@@ -218,6 +221,15 @@ export function HistoryScreen() {
           />
         }
       />
+
+      <ConfirmSheet
+        visible={pendingDelete !== null}
+        title="Delete session"
+        message={pendingDelete ? `Remove "${pendingDelete.title}" from your history? This cannot be undone.` : ''}
+        busy={deleting}
+        onConfirm={onConfirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -234,7 +246,7 @@ function createStyles(colors: ThemeColors, typography: ThemeTypography) {
   },
   searchWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
   searchInput: { marginBottom: 0 },
-  filterScroll: { flexGrow: 0 },
+  filterScroll: { flexGrow: 0, height: 46 },
   filterRow: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

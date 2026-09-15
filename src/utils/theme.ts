@@ -70,19 +70,26 @@ export const fonts = {
   sansBold: 'Inter_700Bold',
 };
 
+// Line heights below are deliberately generous (~1.5x font size, not the
+// ~1.2-1.4x that's plenty for Latin text) — none of the app's custom fonts
+// (Playfair Display, Inter) cover Khmer, Chinese, etc., so that content
+// silently falls back to the OS's own script-specific font. Khmer in
+// particular stacks vowel/diacritic marks well above and below the base
+// letter and needs real headroom, or a tight Latin-tuned lineHeight clips
+// the tops/bottoms of those marks.
 export function buildTypography(colors: ThemeColors): Record<string, TextStyle> {
   return {
     display: {
       fontFamily: fonts.serifBold,
       fontSize: 30,
       color: colors.text,
-      lineHeight: 36,
+      lineHeight: 44,
     },
-    h1: { fontFamily: fonts.serif, fontSize: 24, color: colors.text, lineHeight: 30 },
-    h2: { fontFamily: fonts.serif, fontSize: 20, color: colors.text, lineHeight: 26 },
-    h3: { fontFamily: fonts.sansSemiBold, fontSize: 16, color: colors.text },
-    body: { fontFamily: fonts.sans, fontSize: 15, color: colors.text, lineHeight: 21 },
-    bodyMuted: { fontFamily: fonts.sans, fontSize: 15, color: colors.textMuted, lineHeight: 21 },
+    h1: { fontFamily: fonts.serif, fontSize: 24, color: colors.text, lineHeight: 36 },
+    h2: { fontFamily: fonts.serif, fontSize: 20, color: colors.text, lineHeight: 30 },
+    h3: { fontFamily: fonts.sansSemiBold, fontSize: 16, color: colors.text, lineHeight: 24 },
+    body: { fontFamily: fonts.sans, fontSize: 15, color: colors.text, lineHeight: 24 },
+    bodyMuted: { fontFamily: fonts.sans, fontSize: 15, color: colors.textMuted, lineHeight: 24 },
     eyebrow: {
       fontFamily: fonts.sansSemiBold,
       fontSize: 11,

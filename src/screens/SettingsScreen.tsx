@@ -89,9 +89,9 @@ export function SettingsScreen() {
                 onPress: () => navigation.navigate('UniversalTranslate'),
               },
               {
-                icon: 'people-outline',
-                label: 'Group session',
-                onPress: () => navigation.navigate('SessionSetup'),
+                icon: 'add-circle-outline',
+                label: 'New session',
+                onPress: () => navigation.navigate('NewSession'),
               },
             ]}
           />
@@ -184,9 +184,9 @@ export function SettingsScreen() {
               onPress: () => navigation.navigate('UniversalTranslate'),
             },
             {
-              icon: 'people-outline',
-              label: 'Group session',
-              onPress: () => navigation.navigate('SessionSetup'),
+              icon: 'add-circle-outline',
+              label: 'New session',
+              onPress: () => navigation.navigate('NewSession'),
             },
             {
               icon: 'stats-chart-outline',

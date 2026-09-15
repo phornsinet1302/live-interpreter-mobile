@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,117 +8,50 @@ import { Ionicons } from '@expo/vector-icons';
 import { TranscriptBubble } from '@/components/TranscriptBubble';
 import { EmptyState } from '@/components/EmptyState';
 import { LanguagePickerModal } from '@/components/LanguagePickerModal';
-import { useAuth } from '@/hooks/useAuth';
+import { StopListeningSheet } from '@/components/StopListeningSheet';
+import { NextStepSuggestions } from '@/components/NextStepSuggestions';
 import { useAppPreferences } from '@/hooks/useAppPreferences';
 import { useNotifications } from '@/hooks/useNotifications';
-import { useLiveTranscription } from '@/hooks/useLiveTranscription';
-import * as conversationsService from '@/services/conversations';
-import * as messagesService from '@/services/messages';
+import { useLiveInterpreter } from '@/hooks/useLiveInterpreter';
 import { languageName } from '@/mocks/languages';
 import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
 import { useTheme } from '@/hooks/useTheme';
-import { TranscriptEntry } from '@/types';
 import { RootStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function HomeScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, isAuthenticated } = useAuth();
   const { preferences } = useAppPreferences();
   const { unreadCount } = useNotifications();
   const { colors, typography } = useTheme();
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
-  const [entries, setEntries] = useState<TranscriptEntry[]>([]);
-  const [sourceLanguage, setSourceLanguage] = useState('auto');
-  const [targetLanguage, setTargetLanguage] = useState(
-    user?.preferredLanguage ?? 'en'
-  );
   const [pickerFor, setPickerFor] = useState<'source' | 'target' | null>(null);
-  const counter = useRef(0);
-  const conversationIdRef = useRef<string | null>(null);
 
-  // Lazily creates a backend conversation the first time a segment actually
-  // has speech, so History/Analytics reflect real Home-tab usage too instead
-  // of only ever seeing Group Session data. Reused for the rest of this
-  // listening session; cleared on stop so the next one starts fresh.
-  const ensureConversation = useCallback(async () => {
-    if (!isAuthenticated) return null;
-    if (conversationIdRef.current) return conversationIdRef.current;
-    try {
-      const conversation = await conversationsService.createConversation({
-        title: `Live translate · ${new Date().toLocaleDateString()}`,
-        sourceLanguage,
-        targetLanguage,
-      });
-      conversationIdRef.current = conversation.id;
-      conversationsService.startConversation(conversation.id).catch(() => {});
-      return conversation.id;
-    } catch {
-      return null;
-    }
-  }, [isAuthenticated, sourceLanguage, targetLanguage]);
-
-  const { listening, pendingCount, start, stop } = useLiveTranscription({
+  const {
+    entries,
     sourceLanguage,
+    setSourceLanguage,
     targetLanguage,
-    onSegment: useCallback(
-      (result, startedAt) => {
-        setEntries((prev) => {
-          const entry: TranscriptEntry = {
-            id: `local-${counter.current++}`,
-            speakerId: user?.id ?? 'me',
-            speakerName: user?.name ?? 'You',
-            original: result.sourceText,
-            translated: result.translatedText,
-            source: result.source,
-            target: result.target,
-            timestamp: startedAt,
-          };
-          return [entry, ...prev].sort((a, b) => b.timestamp - a.timestamp);
-        });
-
-        ensureConversation()
-          .then((conversationId) =>
-            conversationId
-              ? messagesService.addMessage(conversationId, { originalText: result.sourceText })
-              : undefined
-          )
-          .catch(() => {});
-      },
-      [user, ensureConversation]
-    ),
-  });
-
-  const onStopPress = useCallback(async () => {
-    await stop();
-    const conversationId = conversationIdRef.current;
-    if (conversationId) {
-      conversationIdRef.current = null;
-      conversationsService.endConversation(conversationId).catch(() => {});
-    }
-  }, [stop]);
-
-  const swapLanguages = useCallback(() => {
-    if (sourceLanguage === 'auto') return;
-    setSourceLanguage(targetLanguage);
-    setTargetLanguage(sourceLanguage);
-  }, [sourceLanguage, targetLanguage]);
-
-  const canSwap = sourceLanguage !== 'auto';
-  const statusText = listening
-    ? pendingCount > 0
-      ? 'Listening — translating…'
-      : 'Listening…'
-    : entries.length
-    ? 'Tap to speak again'
-    : 'Tap to speak';
+    setTargetLanguage,
+    listening,
+    statusText,
+    canSwap,
+    swapLanguages,
+    conversationId,
+    suggestions,
+    stopSheetVisible,
+    onMicPress,
+    onContinueListening,
+    onCloseWithoutSaving,
+    onCloseAndSave,
+  } = useLiveInterpreter();
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.logoBar}>
-        <Pressable onPress={() => navigation.navigate('SessionSetup')} hitSlop={8}>
-          <Ionicons name="people-outline" size={20} color={colors.text} />
+        <Pressable onPress={() => navigation.navigate('NewSession')} hitSlop={8}>
+          <Ionicons name="add-circle-outline" size={22} color={colors.text} />
         </Pressable>
         <View style={styles.logoCenter}>
           <Image
@@ -165,7 +98,7 @@ export function HomeScreen() {
         inverted
         data={entries}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <TranscriptBubble entry={item} />}
+        renderItem={({ item }) => <TranscriptBubble entry={item} showSpeaker />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
@@ -178,6 +111,8 @@ export function HomeScreen() {
         }
       />
 
+      <NextStepSuggestions suggestions={suggestions} />
+
       <View style={styles.controls}>
         <View style={styles.dots}>
           {Array.from({ length: 7 }).map((_, i) => (
@@ -185,7 +120,7 @@ export function HomeScreen() {
           ))}
         </View>
         <Pressable
-          onPress={listening ? onStopPress : start}
+          onPress={onMicPress}
           style={({ pressed }) => [
             styles.micButton,
             {
@@ -213,7 +148,7 @@ export function HomeScreen() {
             onPress={() =>
               navigation.navigate('Summary', {
                 entries,
-                historyId: conversationIdRef.current ?? undefined,
+                historyId: conversationId ?? undefined,
                 title: 'This conversation',
               })
             }
@@ -235,6 +170,13 @@ export function HomeScreen() {
           else setTargetLanguage(code);
         }}
         onClose={() => setPickerFor(null)}
+      />
+
+      <StopListeningSheet
+        visible={stopSheetVisible}
+        onContinue={onContinueListening}
+        onCloseWithoutSaving={onCloseWithoutSaving}
+        onCloseAndSave={onCloseAndSave}
       />
     </SafeAreaView>
   );

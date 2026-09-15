@@ -28,7 +28,19 @@ export function mapMessage(raw: BackendMessage): TranscriptEntry {
 
 export async function addMessage(
   conversationId: string,
-  payload: { originalText: string; speakerId?: string; sourceLanguage?: string; targetLanguage?: string }
+  payload: {
+    originalText: string;
+    speakerId?: string;
+    sourceLanguage?: string;
+    targetLanguage?: string;
+    // Pass along a translation the client already has (live-translate
+    // already ran transcribe+translate in one pass to show it immediately)
+    // so the backend can persist it directly instead of paying for and
+    // waiting on a second, redundant Gemini call for the same text.
+    translatedText?: string;
+    translationProvider?: string;
+    confidence?: number | null;
+  }
 ): Promise<TranscriptEntry> {
   const { data } = await client.post<BackendMessage>(
     `/conversations/${conversationId}/messages`,

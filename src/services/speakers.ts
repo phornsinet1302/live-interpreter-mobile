@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import client from './api';
 import { Speaker } from '@/types';
 
@@ -6,6 +7,7 @@ interface BackendSpeaker {
   _id?: string;
   label?: string;
   displayName?: string;
+  isNew?: boolean;
 }
 
 function mapSpeaker(raw: BackendSpeaker): Speaker {
@@ -45,4 +47,23 @@ export async function updateSpeaker(
     payload
   );
   return mapSpeaker(data);
+}
+
+/**
+ * Compares a recorded segment's voice against speakers already identified in
+ * this conversation (Gemini-based comparison, not true voice biometrics —
+ * see the backend's speakers.service.ts for the caveat). Returns an existing
+ * speaker if matched, or a newly-created "Speaker A/B/C…" if not.
+ */
+export async function identifySpeaker(
+  conversationId: string,
+  audioUri: string
+): Promise<{ speaker: Speaker; isNew: boolean }> {
+  const file = new File(audioUri);
+  const audio = await file.base64();
+  const { data } = await client.post<BackendSpeaker>(
+    `/conversations/${conversationId}/speakers/identify`,
+    { audio, mimeType: 'audio/m4a' }
+  );
+  return { speaker: mapSpeaker(data), isNew: data.isNew ?? false };
 }

@@ -15,12 +15,11 @@ export function MiniBarChart({ data, height = 120 }: MiniBarChartProps) {
   const max = Math.max(1, ...data.map((d) => d.value));
 
   return (
-    <View style={[styles.container, { height: height + 24 }]}>
+    <View style={[styles.container, { height }]}>
       {data.map((d) => {
         const barHeight = Math.max(4, (d.value / max) * height);
         return (
           <View key={d.label} style={styles.column}>
-            <Text style={styles.value}>{d.value}</Text>
             <View style={styles.track}>
               <View style={[styles.bar, { height: barHeight }]} />
             </View>
@@ -40,7 +39,6 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'space-between',
     },
     column: { flex: 1, alignItems: 'center' },
-    value: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.textFaint, marginBottom: 4 },
     track: {
       width: '58%',
       height: '100%',

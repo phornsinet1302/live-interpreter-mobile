@@ -23,6 +23,7 @@ import { AppPreferencesProvider } from '@/context/AppPreferencesContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { useTheme } from '@/hooks/useTheme';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -30,6 +31,7 @@ const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '
 
 function AppShell() {
   const { scheme } = useTheme();
+  usePushNotifications();
   return (
     <>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />

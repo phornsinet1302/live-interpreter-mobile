@@ -5,15 +5,49 @@ import { TranscriptEntry } from '@/types';
 import { fonts, spacing, ThemeColors } from '@/utils/theme';
 import { useTheme } from '@/hooks/useTheme';
 
+/** Lets a screen override the normal theme colors/fonts for its own transcript
+ *  presentation (e.g. SessionLiveScreen's background + font-style panel)
+ *  without touching the shared theme other screens use. */
+export interface TranscriptBubbleAppearance {
+  text: string;
+  textMuted: string;
+  accent: string;
+  border: string;
+  originalFont: string;
+  translatedFont: string;
+}
+
 interface TranscriptBubbleProps {
   entry: TranscriptEntry;
   /** Shows a speaker avatar + name above the entry — use in multi-speaker sessions. */
   showSpeaker?: boolean;
+  /** Multiplier on the base text size — used by the session screen's font-size control. */
+  fontScale?: number;
+  /** Omit to use the normal app theme and default fonts. */
+  appearance?: TranscriptBubbleAppearance;
 }
 
-export function TranscriptBubble({ entry, showSpeaker = false }: TranscriptBubbleProps) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+export function TranscriptBubble({ entry, showSpeaker = false, fontScale = 1, appearance }: TranscriptBubbleProps) {
+  const { colors: themeColors } = useTheme();
+  const colors = useMemo<ThemeColors>(
+    () =>
+      appearance
+        ? {
+            ...themeColors,
+            text: appearance.text,
+            textMuted: appearance.textMuted,
+            accent: appearance.accent,
+            border: appearance.border,
+          }
+        : themeColors,
+    [themeColors, appearance]
+  );
+  const originalFont = appearance?.originalFont ?? fonts.sansMedium;
+  const translatedFont = appearance?.translatedFont ?? fonts.serifItalic;
+  const styles = useMemo(
+    () => createStyles(colors, fontScale, originalFont, translatedFont),
+    [colors, fontScale, originalFont, translatedFont]
+  );
 
   return (
     <View style={styles.container}>
@@ -34,7 +68,7 @@ export function TranscriptBubble({ entry, showSpeaker = false }: TranscriptBubbl
   );
 }
 
-function createStyles(colors: ThemeColors) {
+function createStyles(colors: ThemeColors, fontScale: number, originalFont: string, translatedFont: string) {
   return StyleSheet.create({
     container: {
       alignItems: 'center',
@@ -53,11 +87,14 @@ function createStyles(colors: ThemeColors) {
       marginLeft: spacing.xs,
     },
     original: {
-      fontFamily: fonts.sansMedium,
-      fontSize: 19,
+      fontFamily: originalFont,
+      fontSize: 19 * fontScale,
       color: colors.text,
       textAlign: 'center',
-      lineHeight: 26,
+      // Generous on purpose — this can render Khmer/Chinese/etc. via OS font
+      // fallback (Inter has no coverage for those scripts), and Khmer's
+      // stacked diacritics need real headroom or they clip top/bottom.
+      lineHeight: 30 * fontScale,
     },
     divider: {
       flexDirection: 'row',
@@ -74,11 +111,11 @@ function createStyles(colors: ThemeColors) {
       marginHorizontal: spacing.sm,
     },
     translated: {
-      fontFamily: fonts.serifItalic,
-      fontSize: 20,
+      fontFamily: translatedFont,
+      fontSize: 20 * fontScale,
       color: colors.accent,
       textAlign: 'center',
-      lineHeight: 27,
+      lineHeight: 32 * fontScale,
     },
   });
 }

@@ -8,6 +8,7 @@ import { Chip } from '@/components/Chip';
 import { TranscriptBubble } from '@/components/TranscriptBubble';
 import { EmptyState } from '@/components/EmptyState';
 import { ExportOptionsSheet, ExportFormat } from '@/components/ExportOptionsSheet';
+import { ConfirmSheet } from '@/components/ConfirmSheet';
 import { getTranscript, deleteHistoryItem, setFavorite as setConversationFavorite } from '@/services/history';
 import { exportTranscript } from '@/services/export';
 import { fonts, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
@@ -28,6 +29,8 @@ export function HistoryDetailScreen() {
   const [favorite, setFavorite] = useState(!!item.favorite);
   const [exportSheetVisible, setExportSheetVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { colors, typography } = useTheme();
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
@@ -73,25 +76,16 @@ export function HistoryDetailScreen() {
     [item, entries]
   );
 
-  const onDelete = useCallback(() => {
-    Alert.alert('Delete session', 'This removes the session from your history. This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteHistoryItem(item.id);
-          } catch {
-            // No backend yet — still leave the detail screen.
-          }
-          navigation.goBack();
-        },
-      },
-    ]);
+  const onConfirmDelete = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await deleteHistoryItem(item.id);
+      navigation.goBack();
+    } catch {
+      setDeleting(false);
+      // Leave the sheet open with the session intact rather than pretending it deleted.
+    }
   }, [item.id, navigation]);
-
-  const multiSpeaker = new Set(entries.map((e) => e.speakerName)).size > 1;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -122,7 +116,7 @@ export function HistoryDetailScreen() {
           <Ionicons name="download-outline" size={16} color={colors.accent} />
           <Text style={styles.actionLabel}>Export</Text>
         </Pressable>
-        <Pressable style={styles.actionButton} onPress={onDelete}>
+        <Pressable style={styles.actionButton} onPress={() => setDeleteSheetVisible(true)}>
           <Ionicons name="trash-outline" size={16} color={colors.danger} />
           <Text style={[styles.actionLabel, { color: colors.danger }]}>Delete</Text>
         </Pressable>
@@ -137,7 +131,7 @@ export function HistoryDetailScreen() {
           data={entries}
           keyExtractor={(e) => e.id}
           contentContainerStyle={styles.list}
-          renderItem={({ item: entry }) => <TranscriptBubble entry={entry} showSpeaker={multiSpeaker} />}
+          renderItem={({ item: entry }) => <TranscriptBubble entry={entry} showSpeaker />}
           ListEmptyComponent={
             <EmptyState
               icon="chatbubbles-outline"
@@ -153,6 +147,15 @@ export function HistoryDetailScreen() {
         busy={exporting}
         onClose={() => setExportSheetVisible(false)}
         onSelect={onExport}
+      />
+
+      <ConfirmSheet
+        visible={deleteSheetVisible}
+        title="Delete session"
+        message="This removes the session from your history. This cannot be undone."
+        busy={deleting}
+        onConfirm={onConfirmDelete}
+        onCancel={() => setDeleteSheetVisible(false)}
       />
     </SafeAreaView>
   );
