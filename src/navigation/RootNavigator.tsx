@@ -25,7 +25,6 @@ import { NewSessionScreen } from '@/screens/NewSessionScreen';
 import { SessionLiveScreen } from '@/screens/SessionLiveScreen';
 import { SummaryScreen } from '@/screens/SummaryScreen';
 import { HistoryDetailScreen } from '@/screens/HistoryDetailScreen';
-import { UniversalTranslateScreen } from '@/screens/UniversalTranslateScreen';
 import { AnalyticsScreen } from '@/screens/AnalyticsScreen';
 import { NotificationsScreen } from '@/screens/NotificationsScreen';
 import { NoiseSettingsScreen } from '@/screens/NoiseSettingsScreen';
@@ -229,11 +228,6 @@ export function RootNavigator() {
         <RootStack.Screen
           name="HistoryDetail"
           component={HistoryDetailScreen}
-          options={{ headerShown: false }}
-        />
-        <RootStack.Screen
-          name="UniversalTranslate"
-          component={UniversalTranslateScreen}
           options={{ headerShown: false }}
         />
         <RootStack.Screen

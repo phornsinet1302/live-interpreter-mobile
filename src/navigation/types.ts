@@ -14,7 +14,6 @@ export type RootStackParamList = {
   SessionLive: { title: string };
   Summary: { entries?: TranscriptEntry[]; historyId?: string; title?: string } | undefined;
   HistoryDetail: { item: HistoryItem };
-  UniversalTranslate: undefined;
   Analytics: undefined;
   Notifications: undefined;
   NoiseSettings: undefined;

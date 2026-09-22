@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -9,6 +9,7 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { GuestPrompt } from '@/components/GuestPrompt';
+import { LanguagePickerModal } from '@/components/LanguagePickerModal';
 import { SelectPillGroup } from '@/components/SelectPillGroup';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppPreferences } from '@/hooks/useAppPreferences';
@@ -66,10 +67,17 @@ function Row({ row, isLast }: { row: RowConfig; isLast: boolean }) {
 
 export function SettingsScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, isAuthenticated, signOut } = useAuth();
+  const { user, isAuthenticated, signOut, updateProfile } = useAuth();
   const { preferences, setTheme } = useAppPreferences();
   const { colors, typography } = useTheme();
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+  const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
+
+  const onSelectLanguage = (code: string) => {
+    updateProfile({ preferredLanguage: code }).catch(() => {
+      Alert.alert('Could not save', 'Please check your connection and try again.');
+    });
+  };
 
   if (!isAuthenticated) {
     return (
@@ -83,11 +91,6 @@ export function SettingsScreen() {
           <SectionCard
             title="Tools"
             rows={[
-              {
-                icon: 'apps-outline',
-                label: 'Universal Translate',
-                onPress: () => navigation.navigate('UniversalTranslate'),
-              },
               {
                 icon: 'add-circle-outline',
                 label: 'New session',
@@ -152,7 +155,7 @@ export function SettingsScreen() {
                 icon: 'globe-outline',
                 label: 'Preferred language',
                 value: languageName(user?.preferredLanguage ?? 'en'),
-                onPress: () => navigation.navigate('EditProfile'),
+                onPress: () => setLanguagePickerVisible(true),
               }}
               isLast={false}
             />
@@ -179,11 +182,6 @@ export function SettingsScreen() {
           title="Tools"
           rows={[
             {
-              icon: 'apps-outline',
-              label: 'Universal Translate',
-              onPress: () => navigation.navigate('UniversalTranslate'),
-            },
-            {
               icon: 'add-circle-outline',
               label: 'New session',
               onPress: () => navigation.navigate('NewSession'),
@@ -202,6 +200,14 @@ export function SettingsScreen() {
 
         <Text style={styles.version}>Live Interpreter · v1.0.0</Text>
       </ScrollView>
+
+      <LanguagePickerModal
+        visible={languagePickerVisible}
+        selected={user?.preferredLanguage ?? 'en'}
+        title="Preferred language"
+        onSelect={onSelectLanguage}
+        onClose={() => setLanguagePickerVisible(false)}
+      />
     </SafeAreaView>
   );
 }

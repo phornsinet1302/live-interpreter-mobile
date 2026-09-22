@@ -10,10 +10,18 @@ import {
   type RecordingOptions,
 } from 'expo-audio';
 import { transcribeAndTranslate } from '@/services/translation';
-import { LanguageCode, TranslationResult } from '@/types';
+import { LanguageCode, NoiseEnvironment, TranslationResult } from '@/types';
 
 // Below this level (dB) the mic is treated as picking up silence, not speech.
-const SILENCE_THRESHOLD_DB = -40;
+// Tuned per declared environment: a noisy room has a higher ambient noise
+// floor, so it takes a less negative (i.e. louder) threshold before that
+// floor stops getting misread as speech; a quiet room can afford a more
+// sensitive (more negative) threshold without false-triggering on it.
+const SILENCE_THRESHOLD_DB: Record<NoiseEnvironment, number> = {
+  quiet: -48,
+  normal: -40,
+  noisy: -30,
+};
 // How long silence must hold before a segment is cut and submitted.
 const SILENCE_DURATION_MS = 550;
 // Minimum length before a segment is worth submitting (skips accidental taps).
@@ -61,6 +69,10 @@ interface UseLiveTranscriptionOptions {
   // No iOS equivalent is exposed by expo-audio's plain AVAudioRecorder-based
   // API — enabling this on iOS is a no-op there, not broken.
   noiseReductionEnabled?: boolean;
+  // How aggressively the silence/pause detector filters background sound —
+  // see SILENCE_THRESHOLD_DB below. Applies on every platform (unlike
+  // noiseReductionEnabled, which is Android-only DSP).
+  noiseEnvironment?: NoiseEnvironment;
 }
 
 /**
@@ -86,7 +98,9 @@ export function useLiveTranscription({
   targetLanguage,
   onSegment,
   noiseReductionEnabled = false,
+  noiseEnvironment = 'normal',
 }: UseLiveTranscriptionOptions) {
+  const silenceThresholdDb = SILENCE_THRESHOLD_DB[noiseEnvironment];
   const recordingOptions = useMemo(() => {
     if (!noiseReductionEnabled || Platform.OS !== 'android') {
       return { ...SPEECH_RECORDING_OPTIONS, isMeteringEnabled: true };
@@ -197,7 +211,7 @@ export function useLiveTranscription({
     const elapsed = now - startedAt;
     const metering = recorderState.metering ?? -160;
 
-    if (metering >= SILENCE_THRESHOLD_DB) {
+    if (metering >= silenceThresholdDb) {
       hasSpeechRef.current = true;
       silenceStartRef.current = null;
     } else if (hasSpeechRef.current) {
@@ -215,7 +229,7 @@ export function useLiveTranscription({
     if (elapsed >= MAX_SEGMENT_MS) {
       finalizeSegment(hasSpeechRef.current);
     }
-  }, [recorderState.metering, recorderState.durationMillis, listening, finalizeSegment]);
+  }, [recorderState.metering, recorderState.durationMillis, listening, finalizeSegment, silenceThresholdDb]);
 
   return { listening, pendingCount, start, stop };
 }

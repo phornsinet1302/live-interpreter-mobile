@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppPreferences } from '@/hooks/useAppPreferences';
 import { useLiveTranscription } from '@/hooks/useLiveTranscription';
@@ -38,6 +38,29 @@ export function useLiveInterpreter(options: UseLiveInterpreterOptions = {}) {
   const titleRef = useRef(options.initialTitle);
   const exchangesRef = useRef<{ source: string; translated: string }[]>([]);
   const suggestionsBusyRef = useRef(false);
+
+  // `useState(user?.preferredLanguage ?? 'en')` above only reads `user` once,
+  // at mount — but the backend profile (where preferredLanguage actually
+  // lives) fetches asynchronously and almost never has landed by then, so
+  // that initializer captured the 'en' fallback. Worse, the Home tab stays
+  // mounted across tab switches (React Navigation doesn't unmount
+  // backgrounded tabs by default), so a plain "apply once" effect would only
+  // ever catch the very first load and miss every later change made from
+  // Settings without a full app restart. This instead re-syncs on every real
+  // change to the saved preference, but only while the current target still
+  // matches the last value *we* applied — so it won't stomp on a language
+  // the user deliberately picked in-session (e.g. via swap) since the last
+  // sync, while still picking up a change made in Settings just now.
+  const lastSyncedPreferredRef = useRef<string | null>(null);
+  useEffect(() => {
+    const preferred = user?.preferredLanguage;
+    if (!preferred) return;
+    setTargetLanguage((current) => {
+      const inSync = lastSyncedPreferredRef.current === null || current === lastSyncedPreferredRef.current;
+      lastSyncedPreferredRef.current = preferred;
+      return inSync ? preferred : current;
+    });
+  }, [user?.preferredLanguage]);
 
   // Lazily creates a backend conversation the first time a segment actually
   // has speech, so History/Analytics reflect real usage. Reused for the rest
@@ -85,6 +108,7 @@ export function useLiveInterpreter(options: UseLiveInterpreterOptions = {}) {
     sourceLanguage,
     targetLanguage,
     noiseReductionEnabled: preferences.noiseReductionEnabled,
+    noiseEnvironment: preferences.noiseEnvironment,
     onSegment: useCallback(
       (result, startedAt, audioUri) => {
         const localId = `local-${counter.current++}`;

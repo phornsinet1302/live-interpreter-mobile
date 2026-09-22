@@ -29,10 +29,14 @@
         "backgroundColor": "#F4EEE4"
       },
       "permissions": [
-        "INTERNET",
-        "CAMERA",
-        "SYSTEM_ALERT_WINDOW",
-        "POST_NOTIFICATIONS"
+        "android.permission.INTERNET",
+        "android.permission.CAMERA",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
@@ -55,6 +59,11 @@
           "color": "#C1603A"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b08a2b14-b1a1-4174-a040-bef9d82298f5"
+      }
+    }
   }
 }

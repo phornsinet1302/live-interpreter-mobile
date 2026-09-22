@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -34,12 +34,30 @@ export function EditProfileScreen() {
   const [name, setName] = useState(user?.name ?? '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl);
   const [avatarChanged, setAvatarChanged] = useState(false);
-  const [language, setLanguage] = useState(user?.preferredLanguage ?? 'en');
+  const [language, setLanguageRaw] = useState(user?.preferredLanguage ?? 'en');
   const [pickerVisible, setPickerVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { colors, typography } = useTheme();
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
+  // Same async-profile race as above (see useLiveInterpreter's comment):
+  // preferredLanguage often isn't loaded yet when this screen mounts, so the
+  // useState initializer above can capture the 'en' fallback instead of the
+  // real saved value — and saving right then would silently overwrite it
+  // with 'en'. Apply the real value once it arrives, unless the user has
+  // already picked something themselves in this screen.
+  const userEditedLanguageRef = useRef(false);
+  const setLanguage = (value: string) => {
+    userEditedLanguageRef.current = true;
+    setLanguageRaw(value);
+  };
+  const preferredAppliedRef = useRef(false);
+  useEffect(() => {
+    if (preferredAppliedRef.current || userEditedLanguageRef.current || !user?.preferredLanguage) return;
+    preferredAppliedRef.current = true;
+    setLanguageRaw(user.preferredLanguage);
+  }, [user?.preferredLanguage]);
 
   const pickAvatar = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
