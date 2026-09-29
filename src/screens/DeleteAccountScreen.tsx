@@ -45,7 +45,7 @@ export function DeleteAccountScreen() {
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </Pressable>
       </View>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.iconWrap}>
             <Ionicons name="warning-outline" size={28} color={colors.danger} />

@@ -25,6 +25,7 @@
     },
     "android": {
       "package": "com.liveinterpreter.mobile",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#F4EEE4"
