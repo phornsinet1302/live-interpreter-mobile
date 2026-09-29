@@ -94,22 +94,23 @@ export function HomeScreen() {
         </View>
       </View>
 
-      <FlatList
-        inverted
-        data={entries}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <TranscriptBubble entry={item} showSpeaker />}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <EmptyState
-              icon="mic-outline"
-              title="Ready when you are"
-              subtitle="Tap the mic below and start speaking to begin interpreting."
-            />
-          </View>
-        }
-      />
+      {entries.length === 0 ? (
+        <View style={styles.emptyWrap}>
+          <EmptyState
+            icon="mic-outline"
+            title="Ready when you are"
+            subtitle="Tap the mic below and start speaking to begin interpreting."
+          />
+        </View>
+      ) : (
+        <FlatList
+          inverted
+          data={entries}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <TranscriptBubble entry={item} showSpeaker />}
+          contentContainerStyle={styles.list}
+        />
+      )}
 
       <NextStepSuggestions suggestions={suggestions} />
 
@@ -240,7 +241,7 @@ function createStyles(colors: ThemeColors, typography: ThemeTypography) {
     justifyContent: 'center',
   },
   list: { padding: spacing.md, flexGrow: 1, justifyContent: 'flex-end' },
-  emptyWrap: { transform: [{ scaleY: -1 }] },
+  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   controls: {
     alignItems: 'center',
     paddingVertical: spacing.lg,
