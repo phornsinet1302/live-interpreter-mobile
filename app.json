@@ -2,6 +2,7 @@
   "expo": {
     "name": "Live Interpreter",
     "slug": "live-interpreter-mobile",
+    "scheme": "liveinterpreter",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon.png",

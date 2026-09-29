@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import { useSignIn, useSSO } from '@clerk/expo';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -70,7 +71,7 @@ export function LoginScreen() {
     setError(null);
     try {
       const { createdSessionId, setActive: setActiveSSO } = await withTimeout(
-        startSSOFlow({ strategy: 'oauth_google' }),
+        startSSOFlow({ strategy: 'oauth_google', redirectUrl: Linking.createURL('/sso-callback') }),
         20000,
         'Google sign-in timed out. Check your internet connection and try again.'
       );
