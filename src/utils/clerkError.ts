@@ -42,3 +42,17 @@ export function isInvalidCredentialsError(err: unknown): boolean {
   const code = e?.code || e?.errors?.[0]?.code;
   return !!code && INVALID_CREDENTIALS_CODES.has(code);
 }
+
+/**
+ * Detects Clerk rejecting a password-reset code verification because it
+ * doesn't consider a code "pending" on the current sign-in attempt — even
+ * right after resetPasswordEmailCode.sendCode() succeeded. No dedicated
+ * error code is exposed for this either, so (consistent with
+ * isAlreadySignedInError above) this matches Clerk's own message text. The
+ * practical fix isn't diagnosing why the attempt lost that state — it's not
+ * leaving the user stuck on a dead code: see the auto-resend in
+ * ForgotPasswordScreen.
+ */
+export function isVerificationNotSentError(message: string): boolean {
+  return /need to send a verification code/i.test(message);
+}

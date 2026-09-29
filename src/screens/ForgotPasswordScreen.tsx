@@ -17,7 +17,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { useRedirectIfAuthenticated } from '@/hooks/useRedirectIfAuthenticated';
-import { clerkErrorMessage } from '@/utils/clerkError';
+import { clerkErrorMessage, isVerificationNotSentError } from '@/utils/clerkError';
 import { fonts, radius, spacing, ThemeColors, ThemeTypography } from '@/utils/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { RootStackParamList } from '@/navigation/types';
@@ -68,7 +68,22 @@ export function ForgotPasswordScreen() {
         code: code.trim(),
       });
       if (verifyError) {
-        setError(clerkErrorMessage(verifyError, 'Invalid or expired code.'));
+        const message = clerkErrorMessage(verifyError, 'Invalid or expired code.');
+        // Clerk can lose track of the pending code on this attempt even
+        // right after sendCode() succeeded — rather than leaving the user
+        // stuck resubmitting a code Clerk no longer considers valid, get
+        // them a fresh one automatically and have them retry once.
+        if (isVerificationNotSentError(message)) {
+          const { error: resendError } = await signIn.resetPasswordEmailCode.sendCode();
+          setCode('');
+          setError(
+            resendError
+              ? clerkErrorMessage(resendError, 'Please go back and request a new code.')
+              : 'That code had expired — we just sent you a new one. Enter it below.'
+          );
+          return;
+        }
+        setError(message);
         return;
       }
       const { error: submitError } = await signIn.resetPasswordEmailCode.submitPassword({
